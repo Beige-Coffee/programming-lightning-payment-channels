@@ -48,38 +48,11 @@ impl KeysManager {
     }
 }
 
-/// Exercise 4: Generate a deterministic channel seed
-/// This seed is used to derive per-commitment secrets for the channel
-pub fn generate_channel_seed(
-    channel_value_satoshis: u64,
-    local_pubkey: &PublicKey,
-    remote_pubkey: &PublicKey,
-    nonce: [u8; 32],
-) -> [u8; 32] {
-    let mut engine = Sha256::engine();
-    
-    // Add channel value
-    engine.input(&channel_value_satoshis.to_be_bytes());
-    
-    // Sort pubkeys for determinism
-    let (first, second) = if local_pubkey.serialize() < remote_pubkey.serialize() {
-        (local_pubkey, remote_pubkey)
-    } else {
-        (remote_pubkey, local_pubkey)
-    };
-    
-    engine.input(&first.serialize());
-    engine.input(&second.serialize());
-    engine.input(&nonce);
-    
-    Sha256::from_engine(engine).to_byte_array()
-}
-
 /// Exercise 5: Derive all base keys needed for a channel
 /// These base keys will be used with per-commitment points to create
 /// commitment-specific keys for each channel state
 impl KeysManager {
-    pub fn derive_channel_keys(&self, channel_index: u32, channel_seed: [u8; 32]) -> ChannelKeys {
+    pub fn derive_channel_keys(&self, channel_index: u32) -> ChannelKeys {
         
         // Use derive_key for each key family
         let funding_key = self.derive_key(KeyFamily::MultiSig, channel_index);
@@ -87,11 +60,8 @@ impl KeysManager {
         let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_index);
         let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_index);
         let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_index);
-        
-        // Use channel_seed as commitment_seed
-        let mut commitment_seed = [0u8; 32];
-        commitment_seed.copy_from_slice(&channel_seed);
-        
+        let commitment_seed = self.derive_key(KeyFamily::CommitmentSeed, channel_index);
+
         ChannelKeys {
             funding_key,
             revocation_base_key,

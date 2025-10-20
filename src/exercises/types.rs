@@ -14,7 +14,7 @@ pub enum KeyFamily {
     HtlcBase = 2,
     PaymentBase = 3,
     DelayBase = 4,
-    RevocationRoot = 5,
+    CommitmentSeed = 5,
     NodeKey = 6,
 }
 
