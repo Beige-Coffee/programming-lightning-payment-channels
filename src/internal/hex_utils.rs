@@ -21,26 +21,3 @@ pub fn to_vec(hex: &str) -> Option<Vec<u8>> {
 
     Some(out)
 }
-
-#[inline]
-pub fn hex_str(value: &[u8]) -> String {
-    let mut res = String::with_capacity(2 * value.len());
-    for v in value {
-        write!(&mut res, "{:02x}", v).expect("Unable to write");
-    }
-    res
-}
-
-pub fn to_compressed_pubkey(hex: &str) -> Option<PublicKey> {
-    if hex.len() != 33 * 2 {
-        return None;
-    }
-    let data = match to_vec(&hex[0..33 * 2]) {
-        Some(bytes) => bytes,
-        None => return None,
-    };
-    match PublicKey::from_slice(&data) {
-        Ok(pk) => Some(pk),
-        Err(_) => None,
-    }
-}
