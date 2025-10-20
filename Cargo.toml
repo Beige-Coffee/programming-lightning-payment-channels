@@ -1,7 +1,7 @@
 [package]
 name = "pl-00-intro"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"  # Fixed: was "2024"
 
 [dependencies]
 lightning = { version = "0.0.125", features = ["max_level_trace"] }
@@ -21,6 +21,3 @@ ripemd = "0.1"
 
 [build-dependencies]
 syn = { version = "1.0.107", features = ["parsing", "full","extra-traits"] }
-
-[lib]
-doctest = false
