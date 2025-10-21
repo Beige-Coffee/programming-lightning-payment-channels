@@ -218,7 +218,26 @@ impl CommitmentKeys {
             local_delayed_payment_key,
         }
     }
-    
+
+    /// Create CommitmentKeys from a per-commitment point and a ChannelKeys object
+    pub fn from_channel_keys(
+        per_commitment_point: PublicKey,
+        channel_keys: &ChannelKeys,
+    ) -> Self {
+        let local_htlc_basepoint = PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.local_htlc_key);
+        let remote_revocation_basepoint = PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.remote_revocation_base_key);
+        let remote_htlc_basepoint = PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.remote_htlc_base_key);
+        let local_delayed_payment_basepoint = PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.delayed_payment_base_key);
+
+        Self::from_basepoints(
+            &per_commitment_point,
+            &local_delayed_payment_basepoint,
+            &local_htlc_basepoint,
+            &remote_revocation_basepoint,
+            &remote_htlc_basepoint,
+            &channel_keys.secp_ctx,
+        )
+    }
     /// Create keys directly from provided public keys
     /// 
     /// TESTING PATH: Use this when you have exact keys from BOLT 3 test vectors.

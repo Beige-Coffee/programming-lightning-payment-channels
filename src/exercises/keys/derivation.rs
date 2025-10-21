@@ -1,12 +1,12 @@
-use bitcoin::secp256k1::{Secp256k1, SecretKey, PublicKey, All};
-use bitcoin::bip32::{Xpriv, DerivationPath};
-use bitcoin::hashes::{Hash, sha256};
+use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::HashEngine;
+use bitcoin::hashes::{sha256, Hash};
+use bitcoin::secp256k1::{All, PublicKey, Secp256k1, SecretKey};
 use bitcoin::Network;
 use std::str::FromStr;
 
-use crate::types::{KeyFamily, KeysManager, ChannelKeys};
+use crate::types::{ChannelKeys, KeyFamily, KeysManager};
 
 // ============================================================================
 // SECTION 1: BIP32 KEY DERIVATION & KEYS MANAGER
@@ -18,7 +18,7 @@ use crate::types::{KeyFamily, KeysManager, ChannelKeys};
 pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
     let secp_ctx = Secp256k1::new();
     let master_key = Xpriv::new_master(network, &seed).expect("Valid seed");
-    
+
     KeysManager {
         secp_ctx,
         master_key,
@@ -32,11 +32,12 @@ impl KeysManager {
         // Path: m/1017'/0'/<key_family>'/0/<index>
         let path_str = format!("m/1017'/0'/{}'/0/{}", key_family as u32, index);
         let path = DerivationPath::from_str(&path_str).expect("Valid derivation path");
-        
-        let derived = self.master_key
+
+        let derived = self
+            .master_key
             .derive_priv(&self.secp_ctx, &path)
             .expect("Valid derivation");
-        
+
         derived.private_key
     }
 }
@@ -53,14 +54,15 @@ impl KeysManager {
 /// commitment-specific keys for each channel state
 impl KeysManager {
     pub fn derive_channel_keys(&self, channel_index: u32) -> ChannelKeys {
-        
         // Use derive_key for each key family
         let funding_key = self.derive_key(KeyFamily::MultiSig, channel_index);
         let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_index);
         let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_index);
         let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_index);
         let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_index);
-        let commitment_seed = self.derive_key(KeyFamily::CommitmentSeed, channel_index);
+        let commitment_seed = self
+            .derive_key(KeyFamily::CommitmentSeed, channel_index)
+            .secret_bytes();
 
         ChannelKeys {
             funding_key,
