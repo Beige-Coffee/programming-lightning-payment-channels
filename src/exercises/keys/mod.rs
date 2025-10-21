@@ -8,5 +8,4 @@ pub use commitment::{
     derive_private_key,
     derive_revocation_public_key,
     derive_revocation_private_key,
-    CommitmentKeys,  // Export the new structure
 };

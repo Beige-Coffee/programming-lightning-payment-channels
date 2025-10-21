@@ -1,21 +1,21 @@
-use bitcoin::{Transaction, TxIn, TxOut, OutPoint, Sequence, Witness, Amount};
-use bitcoin::script::ScriptBuf;
-use bitcoin::secp256k1::{Secp256k1, PublicKey, SecretKey};
-use bitcoin::transaction::Version;
-use bitcoin::locktime::absolute::LockTime;
-use bitcoin::consensus::encode::serialize_hex;
-use crate::internal::helper::{get_funding_input};
-use crate::internal::bitcoind_client::{BitcoindClient, get_bitcoind_client};
-use crate::scripts::funding::create_funding_script;
+use crate::internal::bitcoind_client::{get_bitcoind_client, BitcoindClient};
+use crate::internal::helper::get_funding_input;
 use crate::keys::derivation::new_keys_manager;
-use crate::transactions::funding::create_simple_funding_transaction;
+use crate::scripts::funding::create_funding_script;
+use crate::signing::create_commitment_witness;
+use crate::transactions::commitment::create_commitment_transaction;
+use crate::types::{CommitmentKeys, KeyFamily};
+use bitcoin::consensus::encode::serialize_hex;
+use bitcoin::locktime::absolute::LockTime;
+use bitcoin::script::ScriptBuf;
+use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
+use bitcoin::transaction::Version;
+use bitcoin::Network;
+use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use std::time::Duration;
 use tokio::time::sleep;
-use bitcoin::Network;
-use crate::types::{KeyFamily};
 
 pub async fn run(funding_txid: String) {
-
     // Parse the argument as txid
     let txid = funding_txid;
 
@@ -27,27 +27,35 @@ pub async fn run(funding_txid: String) {
     let bitcoin_network = Network::Bitcoin;
     let channel_index = 0;
     let secp_ctx = Secp256k1::new();
+    let commitment_number = 1;
 
     // Get our keys
     let our_keys_manager = new_keys_manager(our_seed, bitcoin_network);
-    let channel_keys = our_keys_manager.derive_channel_keys(channel_index);
-    let first_commitment_point = channel_keys.derive_per_commitment_point(commitment_number=1);
-    let commitment_keys = CommitmentKeys::from_channel_keys(
-            first_commitment_point,
-            channel_keys);
-    
+    let our_channel_keys = our_keys_manager.derive_channel_keys(channel_index);
+    let local_funding_privkey = our_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
+    let local_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &local_funding_privkey);
+    let first_commitment_point = our_channel_keys.derive_per_commitment_point(commitment_number);
 
     // Get our Counterparty Pubkey
     let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
-    let remote_channel_keys = remote_keys_manager.derive_channel_keys(channel_index);
-    let remote_first_commitment_point = remote_channel_keys.derive_per_commitment_point(commitment_number=1);
-    let remote_commitment_keys = CommitmentKeys::from_channel_keys(
-        remote_first_commitment_point,
-        remote_channel_keys);
-
-    let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
-    let remote_payment_privkey = remote_keys_manager.derive_key(KeyFamily::PaymentBase, channel_index);
+    let remote_channel_keys = our_keys_manager.derive_channel_keys(channel_index);
+    let remote_payment_privkey =
+        remote_keys_manager.derive_key(KeyFamily::PaymentBase, channel_index);
     let remote_payment_pubkey = PublicKey::from_secret_key(&secp_ctx, &remote_payment_privkey);
+    let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
+    let remote_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &remote_funding_privkey);
+
+    // Get our keys
+    // we need the remote basepoints for revocation and htlc,
+    //     so we create this after creating their keys
+    let commitment_keys = CommitmentKeys::from_basepoints(
+        &first_commitment_point,
+        our_channel_keys.delayed_payment_base_key,
+        our_channel_keys.htlc_base_key,
+        remote_channel_keys.revocation_base_key,
+        remote_channel_keys.htlc_base_key,
+        &secp_ctx,
+    );
 
     let txid_index = 0;
     let funding_outpoint = get_funding_input(txid.to_string(), txid_index).previous_output;
@@ -70,6 +78,17 @@ pub async fn run(funding_txid: String) {
         feerate_per_kw,
         offered_htlcs,
         received_htlcs,
+    );
+
+    let funding_script = create_funding_script(local_funding_pubkey, remote_funding_pubkey);
+
+    let signed_tx = create_commitment_witness(
+        tx,
+        funding_script,
+        funding_amount,
+        local_funding_privkey,
+        remote_funding_privkey,
+        secp_ctx,
     );
 
     println!("\n✓ Commitment Transaction Created\n");

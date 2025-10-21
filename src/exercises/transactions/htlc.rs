@@ -1,13 +1,13 @@
-use bitcoin::{Transaction, TxIn, TxOut, OutPoint, Sequence, Witness, Amount};
-use bitcoin::script::ScriptBuf;
-use bitcoin::secp256k1::{Secp256k1, PublicKey};
-use bitcoin::transaction::Version;
 use bitcoin::locktime::absolute::LockTime;
+use bitcoin::script::ScriptBuf;
+use bitcoin::secp256k1::{PublicKey, Secp256k1};
+use bitcoin::transaction::Version;
+use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 
-use crate::keys::commitment::CommitmentKeys;
-use crate::scripts::create_to_local_script;
 use crate::keys::derive_revocation_public_key;
+use crate::scripts::create_to_local_script;
 use crate::transactions::fees::calculate_htlc_tx_fee;
+use crate::types::CommitmentKeys;
 
 // ============================================================================
 // HTLC TRANSACTIONS
@@ -23,17 +23,16 @@ pub fn create_htlc_success_transaction(
 ) -> Transaction {
     let fee = calculate_htlc_tx_fee(feerate_per_kw);
     let output_amount = htlc_amount.saturating_sub(fee);
-    
+
     let secp = Secp256k1::new();
 
-    
     // Create to_local script
     let to_local_script = create_to_local_script(
         &local_keys.revocation_key,
         &local_keys.local_delayed_payment_key,
-        to_self_delay
+        to_self_delay,
     );
-    
+
     Transaction {
         version: Version::TWO,
         lock_time: LockTime::ZERO,
@@ -61,16 +60,16 @@ pub fn create_htlc_timeout_transaction(
 ) -> Transaction {
     let fee = calculate_htlc_tx_fee(feerate_per_kw);
     let output_amount = htlc_amount.saturating_sub(fee);
-    
+
     let secp = Secp256k1::new();
-    
+
     // Create to_local script
     let to_local_script = create_to_local_script(
         &local_keys.revocation_key,
         &local_keys.local_delayed_payment_key,
-        to_self_delay
+        to_self_delay,
     );
-    
+
     Transaction {
         version: Version::TWO,
         lock_time: LockTime::from_consensus(cltv_expiry),

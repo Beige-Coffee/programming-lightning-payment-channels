@@ -2,6 +2,7 @@
 // These modules provide user-friendly interfaces for creating and managing
 // Lightning Network transactions through the command line.
 
+pub mod commitment;
 pub mod funding;
 
 // Re-export commonly used functions for convenience
