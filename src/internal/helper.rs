@@ -60,24 +60,6 @@ pub async fn get_unspent_output(bitcoind: BitcoindClient) -> TxIn {
     tx_input
 }
 
-pub fn get_htlc_funding_input(input_tx_id_str: String, vout: usize) -> TxIn {
-    // Get an unspent output to spend
-    let mut tx_id_bytes = hex::decode(input_tx_id_str).expect("Valid hex string");
-    tx_id_bytes.reverse();
-    let input_txid = Txid::from_byte_array(tx_id_bytes.try_into().expect("Expected 32 bytes"));
-
-    // Create a transaction spending this UTXO
-    TxIn {
-        previous_output: OutPoint {
-            txid: input_txid,
-            vout: vout as u32,
-        },
-        sequence: Sequence(0),
-        script_sig: ScriptBuf::new(),
-        witness: Witness::new(),
-    }
-}
-
 pub async fn sign_raw_transaction(bitcoind: BitcoindClient, tx: Transaction) -> Transaction {
     // we need to serialize the tx before passing it into
     //    `sign_raw_transaction_with_wallet`
