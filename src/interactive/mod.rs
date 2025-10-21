@@ -5,6 +5,7 @@
 pub mod commitment;
 pub mod funding;
 pub mod htlc;
+pub mod htlc_timeout;
 
 // Re-export commonly used functions for convenience
 pub use funding::run as funding_run;

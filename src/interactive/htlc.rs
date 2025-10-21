@@ -63,7 +63,7 @@ pub async fn run(funding_txid: String) {
     let funding_outpoint = get_outpoint(txid.to_string(), txid_index);
 
     let funding_amount = 5_000_000;
-    let to_local_value = 3_998_500;
+    let to_local_value = 3_593_500;
     let to_remote_value = 1_000_500;
     let to_self_delay = 144;
     let feerate_per_kw = 15000;

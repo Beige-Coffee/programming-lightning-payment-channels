@@ -68,6 +68,8 @@ pub async fn run(funding_txid: String) {
     let offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
     let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
 
+
+
     // Step 1: Create the unsigned commitment transaction
     let tx = create_commitment_transaction(
         funding_outpoint,

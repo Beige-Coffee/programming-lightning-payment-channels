@@ -119,7 +119,9 @@ async fn main() {
         Commands::Htlc { funding_txid } => {
             interactive::htlc::run(funding_txid.clone()).await;
         },
-        Commands::HtlcTimeout { .. } => todo!(),
+        Commands::HtlcTimeout { commitment_txid } => {
+            interactive::htlc_timeout::run(commitment_txid.clone()).await;
+        },
         Commands::Sha256 { input_string } => {
             let mut hasher = Sha256::new();
             let data = hex::decode(input_string).unwrap();
