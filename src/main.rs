@@ -76,6 +76,16 @@ enum Commands {
         #[arg(short = 't', long, help = "Funding Tx ID")]
         funding_txid: String,
     },
+    /// Create a commitment transaction with HTLC for a Lightning channel
+    Htlc {
+        #[arg(short = 't', long, help = "Funding Tx ID")]
+        funding_txid: String,
+    },
+    /// Create an HTLC Timeout for a Lightning channel
+    HtlcTimeout {
+        #[arg(short = 't', long, help = "Commitment Tx ID")]
+        commitment_txid: String,
+    },
     /// Calculate SHA256 hash of hex input
     Sha256 {
         #[arg(short = 'd', long, help = "Input string to hash (hex)")]
@@ -106,6 +116,10 @@ async fn main() {
         Commands::Commitment { funding_txid } => {
             interactive::commitment::run(funding_txid.clone()).await;
         },
+        Commands::Htlc { funding_txid } => {
+            interactive::htlc::run(funding_txid.clone()).await;
+        },
+        Commands::HtlcTimeout { .. } => todo!(),
         Commands::Sha256 { input_string } => {
             let mut hasher = Sha256::new();
             let data = hex::decode(input_string).unwrap();

@@ -26,22 +26,17 @@ use internal::bitcoind_client::BitcoindClient;
 use internal::hex_utils;
 use std::env;
 
-pub fn get_funding_input(input_tx_id_str: String, vout: usize) -> TxIn {
+pub fn get_outpoint(input_tx_id_str: String, vout: usize) -> OutPoint {
+
     // Get an unspent output to spend
     let mut tx_id_bytes = hex::decode(input_tx_id_str).expect("Valid hex string");
     tx_id_bytes.reverse();
     let input_txid = Txid::from_byte_array(tx_id_bytes.try_into().expect("Expected 32 bytes"));
 
-    // Create a transaction spending this UTXO
-    TxIn {
-        previous_output: OutPoint {
+    OutPoint {
             txid: input_txid,
             vout: vout as u32,
-        },
-        sequence: Sequence::MAX,
-        script_sig: ScriptBuf::new(),
-        witness: Witness::new(),
-    }
+        }
 }
 
 pub async fn get_unspent_output(bitcoind: BitcoindClient) -> TxIn {

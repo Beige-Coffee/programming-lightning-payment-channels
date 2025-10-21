@@ -3,9 +3,11 @@ use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
 use crate::signing::create_commitment_witness;
-use crate::transactions::commitment::create_commitment_transaction;
+use crate::transactions::htlc::create_htlc_timeout_transaction;
 use crate::types::{CommitmentKeys, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
+use bitcoin::hashes::sha256::Hash as Sha256;
+use bitcoin::hashes::{sha256, Hash};
 use bitcoin::locktime::absolute::LockTime;
 use bitcoin::script::ScriptBuf;
 use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -58,26 +60,25 @@ pub async fn run(funding_txid: String) {
     );
 
     let txid_index = 0;
-    let funding_outpoint = get_outpoint(txid.to_string(), txid_index);
+    let htlc_outpoint = get_outpoint(txid.to_string(), txid_index);
 
-    let funding_amount = 5_000_000;
-    let to_local_value = 3_998_500;
+    let htlc_amount = 404_000;
+    let cltv_expiry = 200;
     let to_remote_value = 1_000_500;
     let to_self_delay = 144;
     let feerate_per_kw = 15000;
-    let offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
+    let payment_hash = Sha256::hash(&[0u8; 32]).to_byte_array();
+    let mut offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
+    offered_htlcs.push((405_000, payment_hash));
     let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
 
-    let mut tx = create_commitment_transaction(
-        funding_outpoint,
-        to_local_value,
-        to_remote_value,
-        &commitment_keys,
-        &remote_payment_pubkey,
+    let mut tx = create_htlc_timeout_transaction(
+        htlc_outpoint,
+        htlc_amount,
+        cltv_expiry,
+        commitment_keys,
         to_self_delay,
         feerate_per_kw,
-        offered_htlcs,
-        received_htlcs,
     );
 
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
