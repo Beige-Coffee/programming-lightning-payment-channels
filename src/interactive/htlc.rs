@@ -2,7 +2,7 @@ use crate::internal::bitcoind_client::{get_bitcoind_client, BitcoindClient};
 use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
-use crate::signing::create_commitment_witness;
+use crate::signing::{create_commitment_witness, sign_transaction_input};
 use crate::transactions::commitment::create_commitment_transaction;
 use crate::types::{CommitmentKeys, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
@@ -39,7 +39,7 @@ pub async fn run(funding_txid: String) {
     let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
     let first_commitment_point = our_channel_keys.derive_per_commitment_point(commitment_number);
 
-    // Get our Counterparty Pubkey
+    // Get our Counterparty keys
     let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
     let remote_channel_keys = remote_keys_manager.derive_channel_keys(channel_index);
     let remote_channel_public_keys = remote_channel_keys.to_public_keys();
@@ -47,7 +47,7 @@ pub async fn run(funding_txid: String) {
     let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
     let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
 
-    // Get our keys
+    // Get our commitment keys
     // we need the remote basepoints for revocation and htlc,
     //     so we create this after creating their keys
     let commitment_keys = CommitmentKeys::from_basepoints(
@@ -72,7 +72,8 @@ pub async fn run(funding_txid: String) {
     offered_htlcs.push((405_000, payment_hash));
     let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
 
-    let mut tx = create_commitment_transaction(
+    // Step 1: Create the unsigned commitment transaction
+    let tx = create_commitment_transaction(
         funding_outpoint,
         to_local_value,
         to_remote_value,
@@ -86,19 +87,35 @@ pub async fn run(funding_txid: String) {
 
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
 
+    // Step 2: In real Lightning, we would send this transaction to our counterparty
+    // and they would send us back their signature. Here we simulate that by
+    // creating their signature ourselves (but in reality we wouldn't have their key!)
+    let remote_funding_signature = sign_transaction_input(
+        &tx,
+        0,
+        &funding_script,
+        funding_amount,
+        &remote_funding_privkey,
+        &secp_ctx,
+    );
+
+    // Step 3: Sign the transaction with OUR key and create witness
+    // Note: We only pass our local key, not the remote key
     let witness = create_commitment_witness(
         &tx,
         &funding_script,
         funding_amount,
         &local_funding_privkey,
-        &remote_funding_privkey,
+        remote_funding_signature,  // Received from counterparty
         &secp_ctx,
     );
 
-    tx.input[0].witness = witness;
+    // Step 4: Attach the witness to the transaction
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
 
     println!("\n✓ Commitment Transaction Created\n");
-    println!("Tx ID: {}", tx.compute_txid());
-    println!("\nTx Hex: {}", serialize_hex(&tx));
+    println!("Tx ID: {}", signed_tx.compute_txid());
+    println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();
 }

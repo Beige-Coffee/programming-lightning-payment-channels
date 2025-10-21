@@ -13,7 +13,11 @@ use crate::types::CommitmentKeys;
 // HTLC TRANSACTIONS
 // ============================================================================
 
-/// Exercise 28: Create HTLC-success transaction
+/// Exercise 28: Create HTLC-success transaction (unsigned)
+/// 
+/// This function creates an HTLC-success transaction structure that spends an HTLC output
+/// on the commitment transaction. The transaction is returned unsigned - use the signing
+/// functions in signing.rs to add signatures and witness data.
 pub fn create_htlc_success_transaction(
     htlc_outpoint: OutPoint,
     htlc_amount: u64,
@@ -49,7 +53,11 @@ pub fn create_htlc_success_transaction(
     }
 }
 
-/// Exercise 29: Create HTLC-timeout transaction
+/// Exercise 29: Create HTLC-timeout transaction (unsigned)
+/// 
+/// This function creates an HTLC-timeout transaction structure that spends an HTLC output
+/// on the commitment transaction after the CLTV timeout. The transaction is returned unsigned -
+/// use the signing functions in signing.rs to add signatures and witness data.
 pub fn create_htlc_timeout_transaction(
     htlc_outpoint: OutPoint,
     htlc_amount: u64,

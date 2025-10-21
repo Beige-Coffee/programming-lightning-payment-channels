@@ -2,7 +2,8 @@ use crate::internal::bitcoind_client::{get_bitcoind_client, BitcoindClient};
 use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
-use crate::signing::create_commitment_witness;
+use crate::scripts::htlc::create_offered_htlc_script;
+use crate::signing::{create_commitment_witness, sign_htlc_timeout_transaction, sign_transaction_input};
 use crate::transactions::htlc::create_htlc_timeout_transaction;
 use crate::types::{CommitmentKeys, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
@@ -38,16 +39,23 @@ pub async fn run(funding_txid: String) {
     let local_funding_privkey = our_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
     let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
     let first_commitment_point = our_channel_keys.derive_per_commitment_point(commitment_number);
+    
+    // Derive local HTLC secret key (for signing)
+    let local_htlc_secret = our_keys_manager.derive_key(KeyFamily::HtlcBase, channel_index);
 
-    // Get our Counterparty Pubkey
+    // Get our Counterparty keys
     let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
     let remote_channel_keys = remote_keys_manager.derive_channel_keys(channel_index);
     let remote_channel_public_keys = remote_channel_keys.to_public_keys();
     let remote_payment_pubkey = remote_channel_public_keys.payment_point;
     let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
     let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
+    
+    // Derive remote HTLC secret key (in real Lightning, we would NOT have this)
+    // This is only for demonstration - we use it to simulate receiving a signature from remote
+    let remote_htlc_secret = remote_keys_manager.derive_key(KeyFamily::HtlcBase, channel_index);
 
-    // Get our keys
+    // Get our commitment keys
     // we need the remote basepoints for revocation and htlc,
     //     so we create this after creating their keys
     let commitment_keys = CommitmentKeys::from_basepoints(
@@ -64,38 +72,57 @@ pub async fn run(funding_txid: String) {
 
     let htlc_amount = 404_000;
     let cltv_expiry = 200;
-    let to_remote_value = 1_000_500;
     let to_self_delay = 144;
     let feerate_per_kw = 15000;
     let payment_hash = Sha256::hash(&[0u8; 32]).to_byte_array();
-    let mut offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
-    offered_htlcs.push((405_000, payment_hash));
-    let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
 
-    let mut tx = create_htlc_timeout_transaction(
+    // Create the HTLC script that we're spending from
+    let htlc_script = create_offered_htlc_script(
+        &commitment_keys.revocation_key,
+        &commitment_keys.local_htlc_key,
+        &commitment_keys.remote_htlc_key,
+        &payment_hash,
+    );
+
+    // Step 1: Create the unsigned HTLC timeout transaction
+    let tx = create_htlc_timeout_transaction(
         htlc_outpoint,
         htlc_amount,
         cltv_expiry,
-        commitment_keys,
+        &commitment_keys,
         to_self_delay,
         feerate_per_kw,
     );
 
-    let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
-
-    let witness = create_commitment_witness(
+    // Step 2: In real Lightning, we would send this transaction to our counterparty
+    // and they would send us back their signature. Here we simulate that by
+    // creating their signature ourselves (but in reality we wouldn't have their key!)
+    let remote_htlc_signature = sign_transaction_input(
         &tx,
-        &funding_script,
-        funding_amount,
-        &local_funding_privkey,
-        &remote_funding_privkey,
+        0,
+        &htlc_script,
+        htlc_amount,
+        &remote_htlc_secret,
         &secp_ctx,
     );
 
-    tx.input[0].witness = witness;
+    // Step 3: Sign the transaction with OUR key and create witness
+    // Note: We only pass our local key, not the remote key
+    let witness = sign_htlc_timeout_transaction(
+        &tx,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_secret,
+        remote_htlc_signature,  // Received from counterparty
+        &secp_ctx,
+    );
 
-    println!("\n✓ Commitment Transaction Created\n");
-    println!("Tx ID: {}", tx.compute_txid());
-    println!("\nTx Hex: {}", serialize_hex(&tx));
+    // Step 4: Attach the witness to the transaction
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    println!("\n✓ HTLC Timeout Transaction Created\n");
+    println!("Tx ID: {}", signed_tx.compute_txid());
+    println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();
 }
