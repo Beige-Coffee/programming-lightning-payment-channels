@@ -21,9 +21,6 @@ pub mod scripts;
 #[path = "exercises/transactions/mod.rs"]
 pub mod transactions;
 
-#[path = "exercises/signing.rs"]
-pub mod signing;
-
 #[path = "exercises/workflows.rs"]
 pub mod workflows;
 
@@ -40,13 +37,13 @@ mod tests;
 pub use types::*;
 pub use keys::derivation::*;
 pub use keys::commitment::*;
+pub use keys::sign::*;  // Signing functions now in keys module
 pub use scripts::funding::*;
 pub use scripts::commitment::*;
 pub use scripts::htlc::*;
 pub use transactions::fees::*;
 pub use transactions::commitment::*;
 pub use transactions::htlc::*;
-pub use signing::*;
 pub use workflows::*;
 
 // Constants

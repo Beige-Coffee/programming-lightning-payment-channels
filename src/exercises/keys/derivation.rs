@@ -6,7 +6,7 @@ use bitcoin::secp256k1::{All, PublicKey, Secp256k1, SecretKey};
 use bitcoin::Network;
 use std::str::FromStr;
 
-use crate::types::{ChannelKeys, KeyFamily, KeysManager, ChannelPublicKeys};
+use crate::types::{InMemorySigner, ChannelKeys, KeyFamily, KeysManager, ChannelPublicKeys};
 
 // ============================================================================
 // SECTION 1: BIP32 KEY DERIVATION & KEYS MANAGER
@@ -53,7 +53,7 @@ impl KeysManager {
 /// These base keys will be used with per-commitment points to create
 /// commitment-specific keys for each channel state
 impl KeysManager {
-    pub fn derive_channel_keys(&self, channel_id_index: u32) -> ChannelKeys {
+    pub fn derive_channel_keys(&self, channel_id_index: u32) -> InMemorySigner {
         // Use derive_key for each key family
         let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
         let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
@@ -64,7 +64,7 @@ impl KeysManager {
             .derive_key(KeyFamily::CommitmentSeed, channel_id_index)
             .secret_bytes();
 
-        ChannelKeys {
+        InMemorySigner {
             funding_key,
             revocation_base_key,
             payment_base_key,
@@ -76,7 +76,7 @@ impl KeysManager {
     }
 }
 
-impl ChannelKeys {
+impl InMemorySigner {
     pub fn to_public_keys(&self) -> ChannelPublicKeys {
         ChannelPublicKeys {
             funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
