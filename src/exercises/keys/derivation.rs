@@ -40,18 +40,6 @@ impl KeysManager {
 
         derived.private_key
     }
-    pub fn derive_public_key(&self, key_family: KeyFamily, channel_id_index: u32) -> PublicKey {
-        // Path: m/1017'/0'/<key_family>'/0/<channel_id_index>
-        let path_str = format!("m/1017'/0'/{}'/0/{}", key_family as u32, channel_id_index);
-        let path = DerivationPath::from_str(&path_str).expect("Valid derivation path");
-
-        let derived = self
-            .master_key
-            .derive_priv(&self.secp_ctx, &path)
-            .expect("Valid derivation");
-
-        derived.private_key.public_key(&self.secp_ctx)
-    }
 }
 
 /// Exercise 3: Get the node's identity secret key
@@ -86,20 +74,16 @@ impl KeysManager {
             secp_ctx: self.secp_ctx.clone(),
         }
     }
-    pub fn derive_channel_public_keys(&self, channel_id_index: u32) -> ChannelPublicKeys {
-        // Use derive_key for each key family
-        let funding_pubkey = self.derive_public_key(KeyFamily::MultiSig, channel_id_index);
-        let revocation_basepoint = self.derive_public_key(KeyFamily::RevocationBase, channel_id_index);
-        let payment_point = self.derive_public_key(KeyFamily::PaymentBase, channel_id_index);
-        let delayed_payment_basepoint = self.derive_public_key(KeyFamily::DelayBase, channel_id_index);
-        let htlc_basepoint = self.derive_public_key(KeyFamily::HtlcBase, channel_id_index);
+}
 
+impl ChannelKeys {
+    pub fn to_public_keys(&self) -> ChannelPublicKeys {
         ChannelPublicKeys {
-            funding_pubkey,
-            revocation_basepoint,
-            payment_point,
-            delayed_payment_basepoint,
-            htlc_basepoint,
+            funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
+            revocation_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.revocation_base_key),
+            payment_point: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+            delayed_payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.delayed_payment_base_key),
+            htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
         }
     }
 }

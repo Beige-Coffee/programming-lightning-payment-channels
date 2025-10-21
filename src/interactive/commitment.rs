@@ -32,28 +32,28 @@ pub async fn run(funding_txid: String) {
     // Get our keys
     let our_keys_manager = new_keys_manager(our_seed, bitcoin_network);
     let our_channel_keys = our_keys_manager.derive_channel_keys(channel_index);
+    let our_channel_public_keys = our_channel_keys.to_public_keys();
     let local_funding_privkey = our_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
-    let local_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &local_funding_privkey);
+    let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
     let first_commitment_point = our_channel_keys.derive_per_commitment_point(commitment_number);
 
     // Get our Counterparty Pubkey
     let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
-    let remote_channel_keys = our_keys_manager.derive_channel_keys(channel_index);
-    let remote_payment_privkey =
-        remote_keys_manager.derive_key(KeyFamily::PaymentBase, channel_index);
-    let remote_payment_pubkey = PublicKey::from_secret_key(&secp_ctx, &remote_payment_privkey);
+    let remote_channel_keys = remote_keys_manager.derive_channel_keys(channel_index);
+    let remote_channel_public_keys = remote_channel_keys.to_public_keys();
+    let remote_payment_pubkey = remote_channel_public_keys.payment_point;
     let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
-    let remote_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &remote_funding_privkey);
+    let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
 
     // Get our keys
     // we need the remote basepoints for revocation and htlc,
     //     so we create this after creating their keys
     let commitment_keys = CommitmentKeys::from_basepoints(
         &first_commitment_point,
-        our_channel_keys.delayed_payment_base_key,
-        our_channel_keys.htlc_base_key,
-        remote_channel_keys.revocation_base_key,
-        remote_channel_keys.htlc_base_key,
+        &our_channel_public_keys.delayed_payment_basepoint,
+        &our_channel_public_keys.htlc_basepoint,
+        &remote_channel_public_keys.revocation_basepoint,
+        &remote_channel_public_keys.htlc_basepoint,
         &secp_ctx,
     );
 
@@ -68,31 +68,33 @@ pub async fn run(funding_txid: String) {
     let offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
     let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
 
-    let tx = create_commitment_transaction(
+    let mut tx = create_commitment_transaction(
         funding_outpoint,
         to_local_value,
         to_remote_value,
-        commitment_keys,
-        remote_payment_pubkey,
+        &commitment_keys,
+        &remote_payment_pubkey,
         to_self_delay,
         feerate_per_kw,
         offered_htlcs,
         received_htlcs,
     );
 
-    let funding_script = create_funding_script(local_funding_pubkey, remote_funding_pubkey);
+    let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
 
-    let signed_tx = create_commitment_witness(
-        tx,
-        funding_script,
+    let witness = create_commitment_witness(
+        &tx,
+        &funding_script,
         funding_amount,
-        local_funding_privkey,
-        remote_funding_privkey,
-        secp_ctx,
+        &local_funding_privkey,
+        &remote_funding_privkey,
+        &secp_ctx,
     );
+
+    tx.input[0].witness = witness;
 
     println!("\n✓ Commitment Transaction Created\n");
     println!("Tx ID: {}", tx.compute_txid());
-    println!("\nTx Hex: {}", tx(&signed_tx));
+    println!("\nTx Hex: {}", serialize_hex(&tx));
     println!();
 }

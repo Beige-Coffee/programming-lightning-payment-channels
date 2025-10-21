@@ -71,7 +71,11 @@ struct Cli {
 enum Commands {
     /// Create a funding transaction for a Lightning channel
     Funding,
-    
+    /// Create a commitment transaction for a Lightning channel
+    Commitment {
+        #[arg(short = 't', long, help = "Funding Tx ID")]
+        funding_txid: String,
+    },
     /// Calculate SHA256 hash of hex input
     Sha256 {
         #[arg(short = 'd', long, help = "Input string to hash (hex)")]
@@ -99,7 +103,9 @@ async fn main() {
         Commands::Funding => {
             interactive::funding::run().await;
         },
-        
+        Commands::Commitment { funding_txid } => {
+            interactive::commitment::run(funding_txid.clone()).await;
+        },
         Commands::Sha256 { input_string } => {
             let mut hasher = Sha256::new();
             let data = hex::decode(input_string).unwrap();
