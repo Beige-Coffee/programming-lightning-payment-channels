@@ -45,14 +45,14 @@ impl KeysManager {
     }
 }
 
-/// Exercise 3: Get the node's identity secret key
+
 impl KeysManager {
     pub fn get_node_secret(&self) -> SecretKey {
         self.derive_key(KeyFamily::NodeKey, 0)
     }
 }
 
-/// Exercise 5: Derive all base keys needed for a channel
+/// Exercise 3: Derive all base keys needed for a channel
 /// These base keys will be used with per-commitment points to create
 /// commitment-specific keys for each channel state
 impl KeysManager {

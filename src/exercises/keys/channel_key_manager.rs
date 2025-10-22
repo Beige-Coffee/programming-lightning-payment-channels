@@ -167,46 +167,6 @@ impl ChannelKeyManager {
         }
     }
 
-    /// Get the private delayed payment key for a specific commitment
-    ///
-    /// This is used when we need to spend our own to_local output.
-    /// The delayed payment key is derived from our base secret and the
-    /// per-commitment point.
-    pub fn get_delayed_payment_key(&self, commitment_number: u64) -> SecretKey {
-        let per_commitment_point = self.derive_per_commitment_point(commitment_number);
-        derive_private_key(
-            &self.delayed_payment_base_key,
-            &per_commitment_point,
-            &self.secp_ctx,
-        )
-    }
-
-    /// Get the private HTLC key for a specific commitment
-    ///
-    /// This is used when we need to sign HTLC transactions.
-    /// The HTLC key is derived from our base secret and the per-commitment point.
-    pub fn get_htlc_key(&self, commitment_number: u64) -> SecretKey {
-        let per_commitment_point = self.derive_per_commitment_point(commitment_number);
-        derive_private_key(&self.htlc_base_key, &per_commitment_point, &self.secp_ctx)
-    }
-
-    /// Get the revocation private key for a specific commitment
-    ///
-    /// This is used when we need to claim a penalty transaction because
-    /// our counterparty broadcast an old state. We can only compute this
-    /// if we have both the revocation base secret and the per-commitment secret.
-    pub fn get_revocation_key(
-        &self,
-        commitment_number: u64,
-        remote_per_commitment_secret: &SecretKey,
-    ) -> SecretKey {
-        derive_revocation_private_key(
-            &self.revocation_base_key,
-            remote_per_commitment_secret,
-            &self.secp_ctx,
-        )
-    }
-
     // ========================================================================
     // TRANSACTION SIGNING OPERATIONS
     // ========================================================================

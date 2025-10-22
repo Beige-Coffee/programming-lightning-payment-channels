@@ -8,7 +8,7 @@ use crate::internal::helper::{get_unspent_output, sign_raw_transaction};
 use crate::internal::bitcoind_client::{BitcoindClient, get_bitcoind_client};
 use crate::scripts::funding::create_funding_script;
 use crate::keys::derivation::new_keys_manager;
-use crate::transactions::funding::create_simple_funding_transaction;
+use crate::transactions::funding::create_funding_transaction;
 use std::time::Duration;
 use tokio::time::sleep;
 use bitcoin::Network;
@@ -36,7 +36,7 @@ pub async fn build_funding_tx(
     let input_txid = tx_input.previous_output.txid;
     let input_vout = tx_input.previous_output.vout;
     
-    let tx = create_simple_funding_transaction(
+    let tx = create_funding_transaction(
         input_txid,
         input_vout,
         funding_amount_sat,
