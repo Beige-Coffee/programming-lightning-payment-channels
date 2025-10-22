@@ -32,7 +32,7 @@ pub struct KeysManager {
 /// 
 /// This struct mimics LDK's InMemorySigner and follows the pattern where:
 /// - Keys are stored together with their signing context
-/// - Signing methods are implemented on the struct itself (see signer.rs)
+/// - Signing methods are implemented on the struct itself (see keys/sign.rs)
 /// - The signer encapsulates all channel-specific cryptographic operations
 ///
 /// This is the production-style approach used in real Lightning implementations.
@@ -45,11 +45,6 @@ pub struct InMemorySigner {
     pub commitment_seed: [u8; 32],
     pub secp_ctx: Secp256k1<All>,
 }
-
-/// Deprecated: Use InMemorySigner instead.
-/// This type alias is provided for backwards compatibility.
-#[deprecated(since = "0.1.0", note = "Use InMemorySigner instead to match LDK's architecture")]
-pub type ChannelKeys = InMemorySigner;
 
 /// One counterparty's public keys which do not change over the life of a channel.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

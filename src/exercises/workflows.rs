@@ -6,7 +6,7 @@ use crate::transactions::commitment::{
     create_commitment_transaction, set_obscured_commitment_number,
 };
 use crate::transactions::fees::is_htlc_dust;
-use crate::types::{Bolt3Htlc, Bolt3TestVector, InMemorySigner, ChannelKeys, CommitmentKeys, HtlcDirection};
+use crate::types::{Bolt3Htlc, Bolt3TestVector, InMemorySigner, CommitmentKeys, HtlcDirection};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
 

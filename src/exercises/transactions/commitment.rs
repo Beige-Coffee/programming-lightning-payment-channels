@@ -288,3 +288,44 @@ pub fn create_commitment_transaction(
         output: outputs,
     }
 }
+
+// ============================================================================
+// WITNESS CONSTRUCTION
+// ============================================================================
+
+/// Exercise 31: Create witness for commitment transaction
+/// 
+/// In a real Lightning implementation:
+/// 1. You create the unsigned commitment transaction
+/// 2. You send it to your counterparty to get their signature
+/// 3. You sign it with your local funding key (via the signer)
+/// 4. You combine both signatures to create the witness (this function)
+/// 
+/// This function takes the signer, transaction, and remote signature to construct
+/// the complete witness for the commitment transaction's funding input.
+/// 
+/// Witness stack: [0, sig1, sig2, witnessScript]
+pub fn create_commitment_witness(
+    signer: &crate::types::InMemorySigner,
+    tx: &Transaction,
+    funding_script: &ScriptBuf,
+    funding_amount: u64,
+    remote_funding_signature: Vec<u8>,
+) -> Witness {
+    // Sign with our funding key
+    let local_sig = signer.sign_transaction_input(
+        tx, 
+        0, 
+        funding_script, 
+        funding_amount, 
+        &signer.funding_key,
+    );
+    
+    // Build witness stack: [0, sig1, sig2, witnessScript]
+    Witness::from_slice(&[
+        &[][..],                      // OP_0 for CHECKMULTISIG bug
+        &local_sig[..],
+        &remote_funding_signature[..],
+        funding_script.as_bytes(),
+    ])
+}

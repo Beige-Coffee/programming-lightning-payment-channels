@@ -3,7 +3,7 @@ use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
 use crate::scripts::htlc::create_offered_htlc_script;
-use crate::signing::{create_commitment_witness, sign_htlc_timeout_transaction, sign_transaction_input};
+use crate::keys::sign::{create_commitment_witness, sign_htlc_timeout_transaction, sign_transaction_input};
 use crate::transactions::htlc::create_htlc_timeout_transaction;
 use crate::types::{CommitmentKeys, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
