@@ -37,7 +37,7 @@ pub async fn run(funding_txid: String) {
     let our_channel_public_keys = our_channel_keys_manager.to_public_keys();
     let local_funding_privkey = our_channel_keys_manager.funding_key;
     let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
-    let first_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
+    let second_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
 
     // Get our Counterparty keys
     let remote_node_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
@@ -51,7 +51,7 @@ pub async fn run(funding_txid: String) {
     // we need the remote basepoints for revocation and htlc,
     //     so we create this after creating their keys
     let commitment_keys = CommitmentKeys::from_basepoints(
-        &first_commitment_point,
+        &second_commitment_point,
         &our_channel_public_keys.delayed_payment_basepoint,
         &our_channel_public_keys.htlc_basepoint,
         &remote_channel_public_keys.revocation_basepoint,
