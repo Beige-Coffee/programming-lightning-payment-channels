@@ -306,25 +306,17 @@ pub fn create_commitment_transaction(
 /// 
 /// Witness stack: [0, sig1, sig2, witnessScript]
 pub fn create_commitment_witness(
-    signer: &crate::types::InMemorySigner,
     tx: &Transaction,
     funding_script: &ScriptBuf,
     funding_amount: u64,
+    local_funding_signature: Vec<u8>,
     remote_funding_signature: Vec<u8>,
 ) -> Witness {
-    // Sign with our funding key
-    let local_sig = signer.sign_transaction_input(
-        tx, 
-        0, 
-        funding_script, 
-        funding_amount, 
-        &signer.funding_key,
-    );
     
     // Build witness stack: [0, sig1, sig2, witnessScript]
     Witness::from_slice(&[
         &[][..],                      // OP_0 for CHECKMULTISIG bug
-        &local_sig[..],
+        &local_funding_signature[..],
         &remote_funding_signature[..],
         funding_script.as_bytes(),
     ])

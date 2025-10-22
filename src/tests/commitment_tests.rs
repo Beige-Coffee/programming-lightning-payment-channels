@@ -1,4 +1,4 @@
-use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeys, CommitmentKeys, HtlcDirection};
+use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HtlcDirection};
 use crate::*;
 use bitcoin::consensus::encode;
 use bitcoin::hashes::sha256::Hash as Sha256;
@@ -171,7 +171,7 @@ fn test_commitment_keys_structure() {
     let test_vector = create_base_test_vector();
 
     // Create channel keys
-    let channel_keys = ChannelKeys {
+    let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
         revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
         payment_base_key: test_vector.local_payment_basepoint_secret.clone(),
@@ -527,7 +527,7 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
 
     // Get the commitment keys for HTLC transactions
     let secp = Secp256k1::new();
-    let channel_keys = ChannelKeys {
+    let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
         revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
         payment_base_key: test_vector.local_payment_basepoint_secret.clone(),

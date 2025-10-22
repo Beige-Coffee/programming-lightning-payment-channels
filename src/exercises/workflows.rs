@@ -6,7 +6,7 @@ use crate::transactions::commitment::{
     create_commitment_transaction, set_obscured_commitment_number,
 };
 use crate::transactions::fees::is_htlc_dust;
-use crate::types::{Bolt3Htlc, Bolt3TestVector, InMemorySigner, CommitmentKeys, HtlcDirection};
+use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HtlcDirection};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
 
@@ -92,7 +92,7 @@ pub fn build_complete_commitment_transaction(
 /// 3. Build transaction with those keys (Exercise 30)
 pub fn build_commitment_from_channel_keys(
     funding_outpoint: OutPoint,
-    local_channel_keys: &ChannelKeys,
+    local_channel_keys: &ChannelKeyManager,
     remote_payment_basepoint: &PublicKey,
     remote_revocation_basepoint: &PublicKey,
     remote_htlc_basepoint: &PublicKey,
@@ -152,8 +152,8 @@ pub fn build_commitment_from_channel_keys(
 pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transaction {
     let secp = Secp256k1::new();
 
-    // Build ChannelKeys for key derivation
-    let channel_keys = ChannelKeys {
+    // Build ChannelKeyManager for key derivation
+    let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
         revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
         payment_base_key: test_vector.local_payment_basepoint_secret.clone(),
@@ -221,7 +221,7 @@ pub fn build_bolt3_commitment_with_htlcs(
 ) -> Transaction {
     let secp = Secp256k1::new();
 
-    let channel_keys = ChannelKeys {
+    let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
         revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
         payment_base_key: test_vector.local_payment_basepoint_secret.clone(),

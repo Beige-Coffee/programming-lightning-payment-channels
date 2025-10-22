@@ -28,15 +28,22 @@ pub struct KeysManager {
     pub network: Network,
 }
 
-/// An in-memory signer that holds all private keys for a Lightning channel.
+/// Manages all cryptographic operations for a Lightning channel.
 /// 
-/// This struct mimics LDK's InMemorySigner and follows the pattern where:
-/// - Keys are stored together with their signing context
-/// - Signing methods are implemented on the struct itself (see keys/sign.rs)
-/// - The signer encapsulates all channel-specific cryptographic operations
+/// DESIGN NOTE: This structure combines key storage, derivation, and signing
+/// into one unified manager for educational clarity. Production implementations
+/// like LDK separate these concerns more strictly, but for learning purposes we
+/// consolidate them to reduce cognitive load and show the relationships between
+/// different key operations.
 ///
-/// This is the production-style approach used in real Lightning implementations.
-pub struct InMemorySigner {
+/// This structure handles:
+/// - **Storage**: Holds all base keys and the commitment seed for a channel
+/// - **Derivation**: Generates per-commitment points and derived keys (see keys/commitment.rs)
+/// - **Signing**: Signs transaction inputs with the appropriate keys (see keys/sign.rs)
+///
+/// Historical note: Originally called InMemorySigner to match LDK naming, but renamed
+/// to better reflect its combined responsibilities in this educational implementation.
+pub struct ChannelKeyManager {
     pub funding_key: SecretKey,
     pub revocation_base_key: SecretKey,
     pub payment_base_key: SecretKey,

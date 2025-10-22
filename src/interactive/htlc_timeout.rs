@@ -3,8 +3,9 @@ use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
 use crate::scripts::htlc::create_offered_htlc_script;
-use crate::keys::sign::{create_commitment_witness, sign_htlc_timeout_transaction, sign_transaction_input};
-use crate::transactions::htlc::create_htlc_timeout_transaction;
+use crate::keys::commitment::{derive_private_key};
+use crate::transactions::commitment::{create_commitment_witness};
+use crate::transactions::htlc::{create_htlc_timeout_transaction, create_htlc_timeout_witness};
 use crate::types::{CommitmentKeys, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::hashes::sha256::Hash as Sha256;
@@ -30,36 +31,44 @@ pub async fn run(funding_txid: String) {
     let bitcoin_network = Network::Bitcoin;
     let channel_index = 0;
     let secp_ctx = Secp256k1::new();
-    let commitment_number = 1;
+    let commitment_number = 2;
 
     // Get our keys
-    let our_keys_manager = new_keys_manager(our_seed, bitcoin_network);
-    let our_channel_keys = our_keys_manager.derive_channel_keys(channel_index);
-    let our_channel_public_keys = our_channel_keys.to_public_keys();
-    let local_funding_privkey = our_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
+    let our_node_keys_manager = new_keys_manager(our_seed, bitcoin_network);
+    let our_channel_keys_manager = our_node_keys_manager.derive_channel_keys(channel_index);
+    let our_channel_public_keys = our_channel_keys_manager.to_public_keys();
+    let local_funding_privkey = our_channel_keys_manager.funding_key;
     let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
-    let first_commitment_point = our_channel_keys.derive_per_commitment_point(commitment_number);
+    let second_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
     
     // Derive local HTLC secret key (for signing)
-    let local_htlc_secret = our_keys_manager.derive_key(KeyFamily::HtlcBase, channel_index);
+    let local_htlc_basepoint_secret = our_channel_keys_manager.htlc_base_key;
+    let local_htlc_secret = derive_private_key(
+                                &local_htlc_basepoint_secret,
+                                &second_commitment_point,
+                                &secp_ctx,
+                                );
 
     // Get our Counterparty keys
-    let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
-    let remote_channel_keys = remote_keys_manager.derive_channel_keys(channel_index);
-    let remote_channel_public_keys = remote_channel_keys.to_public_keys();
+    let remote_node_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
+    let remote_channel_keys_manager = remote_node_keys_manager.derive_channel_keys(channel_index);
+    let remote_channel_public_keys = remote_channel_keys_manager.to_public_keys();
     let remote_payment_pubkey = remote_channel_public_keys.payment_point;
-    let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
+    let remote_funding_privkey = remote_channel_keys_manager.funding_key;
     let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
     
-    // Derive remote HTLC secret key (in real Lightning, we would NOT have this)
-    // This is only for demonstration - we use it to simulate receiving a signature from remote
-    let remote_htlc_secret = remote_keys_manager.derive_key(KeyFamily::HtlcBase, channel_index);
+    let remote_htlc_basepoint_secret = remote_channel_keys_manager.htlc_base_key;
+    let remote_htlc_secret = derive_private_key(
+                                &remote_htlc_basepoint_secret,
+                                &second_commitment_point,
+                                &secp_ctx,
+                                );
 
     // Get our commitment keys
     // we need the remote basepoints for revocation and htlc,
     //     so we create this after creating their keys
     let commitment_keys = CommitmentKeys::from_basepoints(
-        &first_commitment_point,
+        &second_commitment_point,
         &our_channel_public_keys.delayed_payment_basepoint,
         &our_channel_public_keys.htlc_basepoint,
         &remote_channel_public_keys.revocation_basepoint,
@@ -97,24 +106,28 @@ pub async fn run(funding_txid: String) {
     // Step 2: In real Lightning, we would send this transaction to our counterparty
     // and they would send us back their signature. Here we simulate that by
     // creating their signature ourselves (but in reality we wouldn't have their key!)
-    let remote_htlc_signature = sign_transaction_input(
+    let remote_htlc_signature = remote_channel_keys_manager.sign_transaction_input(
         &tx,
         0,
         &htlc_script,
         htlc_amount,
         &remote_htlc_secret,
-        &secp_ctx,
+    );
+
+    let local_htlc_signature = our_channel_keys_manager.sign_transaction_input(
+        &tx,
+        0,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_secret,
     );
 
     // Step 3: Sign the transaction with OUR key and create witness
     // Note: We only pass our local key, not the remote key
-    let witness = sign_htlc_timeout_transaction(
-        &tx,
+    let witness = create_htlc_timeout_witness(
+        remote_htlc_signature,
+        local_htlc_signature,
         &htlc_script,
-        htlc_amount,
-        &local_htlc_secret,
-        remote_htlc_signature,  // Received from counterparty
-        &secp_ctx,
     );
 
     // Step 4: Attach the witness to the transaction

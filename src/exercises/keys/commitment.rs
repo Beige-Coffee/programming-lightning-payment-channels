@@ -3,37 +3,17 @@ use bitcoin::hashes::HashEngine;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::{All, PublicKey, Scalar, Secp256k1, SecretKey};
 
-use crate::types::{ChannelKeys, CommitmentKeys};
+use crate::types::CommitmentKeys;
 
 // ============================================================================
-// SECTION 2: PER-COMMITMENT KEY DERIVATION
+// PER-COMMITMENT KEY DERIVATION (STANDALONE FUNCTIONS)
 // ============================================================================
-// These exercises teach how to derive keys specific to each commitment
-// transaction using per-commitment points and base keys.
-
-/// Exercise 6: Build commitment secret from commitment number
-impl ChannelKeys {
-    pub fn build_commitment_secret(&self, commitment_number: u64) -> [u8; 32] {
-        let mut res: [u8; 32] = self.commitment_seed.clone();
-        for i in 0..48 {
-            let bitpos = 47 - i;
-            if commitment_number & (1 << bitpos) == (1 << bitpos) {
-                res[bitpos / 8] ^= 1 << (bitpos & 7);
-                res = Sha256::hash(&res).to_byte_array();
-            }
-        }
-        res
-    }
-}
-
-/// Exercise 7: Derive per-commitment point from commitment number
-impl ChannelKeys {
-    pub fn derive_per_commitment_point(&self, commitment_number: u64) -> PublicKey {
-        let secret = self.build_commitment_secret(commitment_number);
-        let secret_key = SecretKey::from_slice(&secret).expect("Valid secret");
-        PublicKey::from_secret_key(&self.secp_ctx, &secret_key)
-    }
-}
+// These are utility functions for deriving keys from basepoints.
+// They are used by ChannelKeyManager methods but are also useful standalone.
+//
+// Note: The impl ChannelKeyManager methods (build_commitment_secret,
+// derive_per_commitment_point, get_commitment_keys) have been moved to
+// channel_key_manager.rs for better organization.
 
 /// Exercise 8: Derive public key from basepoint and per-commitment point
 pub fn derive_public_key(
@@ -210,35 +190,5 @@ impl CommitmentKeys {
             local_htlc_key,
             remote_htlc_key,
         }
-    }
-}
-
-/// Helper method to get commitment keys for a specific commitment number
-///
-/// This combines per-commitment point derivation (Exercise 7) with commitment key
-/// derivation (Exercise 10) to get all keys needed for a commitment transaction.
-/// This is a convenience method, not a separate exercise.
-impl ChannelKeys {
-    pub fn get_commitment_keys(
-        &self,
-        commitment_number: u64,
-        local_revocation_pubkey: &PublicKey,
-        remote_htlc_basepoint: &PublicKey,
-        local_htlc_basepoint: &PublicKey,
-    ) -> CommitmentKeys {
-        let per_commitment_point = self.derive_per_commitment_point(commitment_number);
-
-        // Convert each base key to public key
-        let local_delayed_payment_basepoint =
-            PublicKey::from_secret_key(&self.secp_ctx, &self.delayed_payment_base_key);
-
-        CommitmentKeys::from_basepoints(
-            &per_commitment_point,
-            &local_delayed_payment_basepoint,
-            &local_htlc_basepoint,
-            local_revocation_pubkey,
-            remote_htlc_basepoint,
-            &self.secp_ctx,
-        )
     }
 }

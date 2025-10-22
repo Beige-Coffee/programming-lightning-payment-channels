@@ -37,7 +37,6 @@ mod tests;
 pub use types::*;
 pub use keys::derivation::*;
 pub use keys::commitment::*;
-pub use keys::sign::*;  // Signing functions now in keys module
 pub use scripts::funding::*;
 pub use scripts::commitment::*;
 pub use scripts::htlc::*;

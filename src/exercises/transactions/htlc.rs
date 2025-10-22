@@ -112,22 +112,11 @@ pub fn create_htlc_timeout_transaction(
 /// 
 /// Witness stack: [0, remote_htlc_sig, local_htlc_sig, payment_preimage, htlc_script]
 pub fn create_htlc_success_witness(
-    signer: &crate::types::InMemorySigner,
-    tx: &Transaction,
-    htlc_script: &ScriptBuf,
-    htlc_amount: u64,
-    local_htlc_key: &SecretKey,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_signature: Vec<u8>,
     payment_preimage: [u8; 32],
+    htlc_script: &ScriptBuf,
 ) -> Witness {
-    // Sign with our local HTLC key
-    let local_htlc_signature = signer.sign_transaction_input(
-        tx,
-        0,
-        htlc_script,
-        htlc_amount,
-        local_htlc_key,
-    );
 
     // Build witness stack
     Witness::from_slice(&[
@@ -153,21 +142,10 @@ pub fn create_htlc_success_witness(
 /// 
 /// Witness stack: [0, remote_htlc_sig, local_htlc_sig, 0 (false), htlc_script]
 pub fn create_htlc_timeout_witness(
-    signer: &crate::types::InMemorySigner,
-    tx: &Transaction,
-    htlc_script: &ScriptBuf,
-    htlc_amount: u64,
-    local_htlc_key: &SecretKey,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_signature: Vec<u8>,
+    htlc_script: &ScriptBuf,
 ) -> Witness {
-    // Sign with our local HTLC key
-    let local_htlc_signature = signer.sign_transaction_input(
-        tx,
-        0,
-        htlc_script,
-        htlc_amount,
-        local_htlc_key,
-    );
 
     // Build witness stack
     Witness::from_slice(&[
