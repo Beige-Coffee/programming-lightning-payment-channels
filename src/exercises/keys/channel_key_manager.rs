@@ -30,38 +30,6 @@ use crate::types::{ChannelKeyManager, ChannelPublicKeys, CommitmentKeys};
 // 3. Transaction signing (sign_transaction_input, verify_signature)
 
 impl ChannelKeyManager {
-    // ========================================================================
-    // CONSTRUCTION AND CONVERSION
-    // ========================================================================
-
-    /// Create a new ChannelKeyManager with the given keys
-    ///
-    /// This is the primary constructor for creating a ChannelKeyManager
-    /// from a set of secret keys.
-    pub fn new(
-        funding_key: SecretKey,
-        revocation_base_key: SecretKey,
-        payment_base_key: SecretKey,
-        delayed_payment_base_key: SecretKey,
-        htlc_base_key: SecretKey,
-        commitment_seed: [u8; 32],
-    ) -> Self {
-        Self {
-            funding_key,
-            revocation_base_key,
-            payment_base_key,
-            delayed_payment_base_key,
-            htlc_base_key,
-            commitment_seed,
-            secp_ctx: Secp256k1::new(),
-        }
-    }
-
-    /// Exercise 6: Convert private keys to public keys
-    ///
-    /// This creates the set of public keys that should be shared with the
-    /// channel counterparty during channel setup. These basepoints remain
-    /// constant for the lifetime of the channel.
     pub fn to_public_keys(&self) -> ChannelPublicKeys {
         ChannelPublicKeys {
             funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
@@ -69,7 +37,7 @@ impl ChannelKeyManager {
                 &self.secp_ctx,
                 &self.revocation_base_key,
             ),
-            payment_point: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
             delayed_payment_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
                 &self.delayed_payment_base_key,

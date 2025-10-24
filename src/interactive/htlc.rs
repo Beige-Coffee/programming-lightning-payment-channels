@@ -43,7 +43,7 @@ pub async fn run(funding_txid: String) {
     let remote_node_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
     let remote_channel_keys_manager = remote_node_keys_manager.derive_channel_keys(channel_index);
     let remote_channel_public_keys = remote_channel_keys_manager.to_public_keys();
-    let remote_payment_pubkey = remote_channel_public_keys.payment_point;
+    let remote_payment_pubkey = remote_channel_public_keys.payment_basepoint;
     let remote_funding_privkey = remote_channel_keys_manager.funding_key;
     let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
 

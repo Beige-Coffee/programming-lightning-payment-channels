@@ -20,7 +20,7 @@ use crate::types::{ChannelKeyManager, KeyFamily, KeysManager};
 /// Exercise 1: Create a new KeysManager from a seed
 pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
     let secp_ctx = Secp256k1::new();
-    let master_key = Xpriv::new_master(network, &seed).expect("Valid seed");
+    let master_key = Xpriv::new_master(network, &seed).unwrap();
 
     KeysManager {
         secp_ctx,

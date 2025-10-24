@@ -22,7 +22,7 @@ use crate::scripts::funding::create_funding_script;
 /// - One output (the 2-of-2 multisig funding output)
 /// 
 /// In practice, you'd also need a change output, but we'll start simple.
-pub fn create_simple_funding_transaction(
+pub fn create_funding_transaction(
     input_txid: Txid,
     input_vout: u32,
     funding_amount_sat: u64,

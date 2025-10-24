@@ -67,7 +67,7 @@ pub struct ChannelPublicKeys {
     /// The public key on which the non-broadcaster (ie the countersignatory) receives an immediately
     /// spendable primary channel balance on the broadcaster's commitment transaction. This key is
     /// static across every commitment transaction.
-    pub payment_point: PublicKey,
+    pub payment_basepoint: PublicKey,
     /// The base point which is used (with derive_public_key) to derive a per-commitment payment
     /// public key which receives non-HTLC-encumbered funds which are only available for spending
     /// after some delay (or can be claimed via the revocation path).
