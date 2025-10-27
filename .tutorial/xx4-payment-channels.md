@@ -2,45 +2,9 @@
 
 For a payment channel to operate in a trustless environment, we're going to need to ensure that the funds being transfered **off-chain** in the payment channel cannot be unilaterally moved **on-chain**. In other words, Alice should not be able to show up to Bob's bar, give him an off-chain transaction in exchange for a glass of wine, and then move the same UTXO referenced in the off-chain transaction - rendering Bob's transaction invalid.
 
-To mitigate against this vulnerability, we can begin our payment channel by locking the channel funds in a **Pay-to-Witness-Script-Hash (P2WSH) 2-of-2 multisig output** where Alice and Bob both provide one public key. We'll call this transaction our **"Funding Transaction"** because it is providing the resources needed to operate our payment channel. To move the funds out of this UTXO (effectively, closing the channel), Alice and Bob will need to *agree* to close the channel by both providing valid signatures for this transaction.
+To mitigate against this vulnerability, we can begin our payment channel by locking the channel funds in a **Pay-to-Witness-Script-Hash (P2WSH) 2-of-2 multisig output** where Alice and Bob both provide one public key. We'll call this transaction our **"Funding Transaction"**. To move the funds out of this UTXO (effectively, closing the channel), Alice and Bob will need to provide both of their signatures.
 
-## BOLT 2: Peer Protocol for Channel Management
-The motivating example that we'll be working off for this course involves Alice paying Bob. In this case, Alice and Bob know each other. However, in the "real world", Lightning is a decentralized protocol and can be accessed by anyone. Therefore, it's helpful to have a standardized protocol for exchanging information such that all participants on the network *speak the same langauge*.
-
-[BOLT 2](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md) defines the **channel management** portion of the shared language of Lightning. Channel managment is broken into the following three phases:
-1. **Channel Establishment**: These protocol messages define how peers should communicate their intent to open a channel with each other and which information should be exchanged as part of this process.
-2. **Normal Operation**: Once the channel is open, peers can begin to send payments to each other (or route payments *through* each other).
-3. **Closing**: At we'll learn later, there are multiple ways to "close" a channel. BOLT 2 defines protocols for what may be considered the happy path, whereby both parties agree and work together to close their channel.
-
-Another important part of the shared language, which is not thoroughly discussed in this course, is [BOLT 7: P2P Node and Channel Discovery](https://github.com/lightning/bolts/blob/master/07-routing-gossip.md).
-
-### BOLT 2: Channel Open
-When one party wants to open a channel with another, they will begin the **"Channel Establishment"** process by sending an [`open_channel`](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md#the-open_channel-message) message to their counterparty. In this case, Alice will begin the process of **creating the funding transaction** and opening a channel to Bob by sending an `open_channel` message to Bob. Some of the fields in the `open_channel` message have been left out at the moment for simplicity. However, you should be able to recognize most of the ones in the image below. Many of them are the public keys we created in an earlier exercise! Remember, Alice and Bob each have their own set of these keys. Alice will begin the process of opening a new channel by sending these keys to Bob. We'll see why shortly!
-
-Upon receiving a `channel_open` message, the recipient will decide if they would like to accept the incoming channel. There are a variety of things to consider as part of this process. For those who already have an intuition for how Lightning works, you may recognize 'feerate_per_kw' as the feerate that Alice is proposing to pay for the commitment and HTLC transactions. If Bob thinks these are either too high or too low, he can reject Alice's channel open. If this doesn't make sense yet, don't worry! We'll cover all of this in due time.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/open_channel.png" alt="open_channel" width="100%" height="auto">
-</p>
-
-### BOLT 2: Accept Channel
-If Bob accepts Alice's channel proposal, he can send back an [`accept_channel`](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md#the-accept_channel-message) message, including a few of his own channel requirements. For example, Bob will specify the `minimum_depth`, which defines the number of block confirmations (on the funding transaction) that Bob requires before him and Alice can send payments. Also, he will specify the maximum number of active HTLCs he will accept. Fun fact: the protocol specification limits this value to 483! Again, if these things don't make sense just yet - don't worry!
-
-Finally, Bob will send his public keys to Alice as well!
-
-Similar to the `open_channel` message above, note that this is also a simplified version of the `accept_channel` message. Specifically, some of the fields have been left out of the visual below.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/accept_channel.png" alt="accept_channel" width="100%" height="auto">
-</p>
-
-## Building Our Funding Transaction
-
-Since Alice is opening a channel to Bob, she will initially provide the funds for this payment channel. Note, this is also known as **Channel Establishment V1**, whereby **only the channel opener can fund the channel**. **Channel Establishment V2** is a little more complicated and is not covered in this course. However, it's still worth noting that V2 allows for "dual-funded" channels whereby **both parties contribute UTXOs to fund the payment channel**.
-
-Since we're covering V1 Channel Establishment, Alice will provide the input to this **"Funding Transaction"**. You can think of this as Alice showing up to Bob's bar and opening a tab with a specific amount.
-
-Now that Alice has Bob's **funding public key**, which he provided in the `accept_channel` message, Alice can build the funding transaction by locking the funds in a 2-of-2 multisig where Alice and Bob each hold one public key. Now, since Alice cannot spend this UTXO without a signature from Bob, Bob can safely accept payments from Alice!
+**Alice will initially provide the funds for this payment channel**, so she will provide the input to this **"Funding Transaction"**. You can think of this as Alice showing up to Bob's bar and opening a tab with a specific amount. It's worth noting that Lightning does allow for "duel-funded" channels, where both parties bring funds, but we'll keep things simple by focusing on single-funded channels.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/funding.png" alt="funding.png" width="100%" height="auto">
@@ -52,26 +16,28 @@ Now that Alice has Bob's **funding public key**, which he provided in the `accep
 
 The amount in this UTXO is going to be channel balance for this payment channel. Therefore, neither channel party will be able to send the other channel party **more than this amount** of sats.
 
-There are ways to increase this amount while the channel is active, called "splicing", but that is outside the scope of this course.
+There are ways to increase this amount while the channel is active, called "splicing", but that is more advanced and will be covered later in this course.
 
 </details>
 
-## Sending A Payment
-To send a payment, Alice and Bob can simply create a new transaction that spends from the funding transaction. Each new transaction will have an output for Alice and Bob with their respective channel balances.
+### Sending a Payment
+⚠️ WARNING: The below example is *not* how exactly Lightning works, but it helps build our intuition. There are still some security issues below, which we will identify and fix! In the meantime, it will help us conceptualize what we're building towards.
+
+Now that Alice has locked her funds in a 2-of-2 multisig, she cannot move her funds out of the payment channel unless Bob agrees by providing his signature. To send a payment, Alice and Bob can simply create a new transaction that spends from the funding transaction. **Each new transaction will have an output for Alice and Bob with their respective channel balances**.
 
 Returning to our prior example, imagine Alice sends Bob 1 million sats.
 
 Alice then decides to send Bob another 1 million sats for another round of drinks (big spender!).
 
-For each payment, Alice is creating a new transaction, moving sats from her output to Bob's output. Recall, since the funds are locked on-chain in a 2-of-2 multisig, both Alice and Bob will need to provide a new signature for each commitment transaction. If you notice some security flaws below, you'd be right! We'll be fixing them shortly.
+For each payment, Alice is creating a new transaction, moving sats from her output to Bob's output. Since the funds are locked on-chain in a 2-of-2 multisig, both Alice and Bob will need to provide a new signature for each commitment transaction. 
 
 ***PRO TIP!***: Don't be afraid to zoom in. Some of these diagrams may be hard to read, but the diagram should render quite nicely if you zoom in.
 
 <p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/simple_payment1.png" alt="simple_payment" width="100%" height="auto">
+  <img src="./tutorial_images/simple_payment.png" alt="simple_payment" width="100%" height="auto">
 </p>
 
-#### Question: As of now, none of the "off-chain" transactions are paying fees. Let's fix that! Who should be responsible for paying the on-chain fees?
+#### Question: Who should be responsible for paying the on-chain fees? In the above example, who is paying them now?
 
 <details>
   <summary>Answer</summary>
@@ -79,12 +45,6 @@ For each payment, Alice is creating a new transaction, moving sats from her outp
 For "legacy" (pre-anchor outputs and pre-V3 commitments) commitment transactions, which this workbook is focused on, **the party that opens the channel pays the on-chain fees**. In other words, **fees are deducted from the output paying the channel opener**. In this case, that's Alice.
 
 If you've been following Lightning Network development, you're likely aware that many of the advancements in Lightning have been motivated by mitigating issues related to fees. We'll dig into this more a little later. We haven't yet introduced all of the nuances of how Lightning works, so we can't fully elaborate on this just yet.
-
-In the meantime, let's update our channel between Alice and Bob. **We'll assume that 1,000 sats is a sufficient fee, so we'll deduct that amount from Alice's output**. Therefore, the sum of Alice + Bob's outputs is now 4,999,000 and the remaining 1,000 goes towards miner fees.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/simple_payment_fees.png" alt="simple_payment_fees" width="100%" height="auto">
-</p>
 
 </details>
 

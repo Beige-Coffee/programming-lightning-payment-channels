@@ -10,8 +10,8 @@ Let's start by reviewing our end goal: **We need to create unique public and pri
 For the rest of this course, **we'll play the part of Alice** in implementing and operating our Lightning implementation. In the below diagram, you can see each public key that Alice will provide for this arbitrary channel state between Alice and Bob. NOTE: for simplicity, the Hash-Time-Locked-Contract (HTLC) output is *not* pictured, but Alice will have an HTLC public key embedded within the HTLC output for both her commitment transaction and Bob's commitment transaction. Again, if the words "HTLC" and "commitment transaction" don't make sense, that's totally okay!
 
 The most important thing to take away from this diagram is the following:
-- We'll need a few different **types** of public keys - one for each spending path.
-- *Most* of the public keys that are placed in each spending path are a **combination** of two *public keys*: a **basepoint** and a **per commitment point**. We'll cover both of these shortly.
+- We'll need **different** public keys - one for each spending path.
+- *Most* of the public keys that are placed in each spending path are a **combination** of two public keys: a **basepoint** and a **per commitment point**. We'll cover both of these shortly.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/basepoint_keys.png" alt="basepoint_keys" width="100%" height="auto">
@@ -43,7 +43,7 @@ Next, we'll explore using BIP32 to derive all of the keys we'll need to implemen
 ## Lightning Off-Chain Wallet Strucure
 At this point, we have a general idea of *which* keys we'll need to use in our Lightning implementation. That said, we don't yet know what they will be used for, but that will come in due time! Fun Fact: the following key derivation is actually very similar to how the [Lightning Network Deamon (LND)](https://github.com/lightningnetwork/lnd) works.
 
-Let's set the scene by briefly reviewing **Bitcoin Improvement Proposal (BIP) 32**
+Let's set the scene by briefly reviewing **Bitcoin Improvement Proposal (BIP) 32**.
 
 BIP 32  describes a **hierarchical deterministic** (**HD**) wallet structure and introduces the following characteristics for key management:
 - **Single Source**: All public and private keys can be derived from a single seed. As long as you have access to the seed, you can re-derive the entire wallet.

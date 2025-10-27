@@ -134,7 +134,19 @@ ChannelPublicKeys {
     htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
 }
 ```
-
-Great work! You've now implemented the complete flow: from a random seed, to a master key, to channel-specific private keys, and finally to the public keys you'd share with your counterparty. This is the foundation of Lightning key management!
-
 </details>
+
+## Checkpoint
+Okay, let's do a quick review of what we've implemented so far!
+
+First, we completed the function, `new_keys_manager`, which takes a **seed** and returns a `KeysManager` type, which contins the master key for our HD Lightning wallet and some other helpful context, such as the bitcoin network and a Secp256k1 context for cryptographic operations.
+
+Next, we implemented `derive_key`, which we can use to generate a new private/public key for **any** arbitrary `KeyFamily` and channel state. This is a very powerful function, as it serves as the backbone for all of the keys we'll use in Lightning!
+
+We then completed `derive_channel_keys`, which creates a new `ChannelKeyManager` for a given `channel_id_index`. This function will create all of they private key and seed material needed to operate a Lightning channel. Furthermore, we can derive keys for many different channels by simply changing the index passed into the function.
+
+Finally, we implemented `to_public_keys`, a method which is available on our `ChannelKeyManager`. This method will create a new structure, `ChannelPublicKeys`, which holds all of the public key material we'll need for our Lightning channel.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/keys_checkpoint.png" alt="keys_checkpoint" width="90%" height="auto">
+</p>
