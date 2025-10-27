@@ -13,6 +13,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
+use bitcoin::PublicKey as BitcoinPublicKey;
 
 pub async fn build_funding_tx(
     bitcoind: BitcoindClient,
@@ -27,11 +28,13 @@ pub async fn build_funding_tx(
     
     let our_keys_manager = new_keys_manager(our_seed, bitcoin_network);
     let local_funding_privkey = our_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
-    let local_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &local_funding_privkey);
+    let local_funding_pubkey = BitcoinPublicKey::new(
+            PublicKey::from_secret_key(&secp_ctx, &local_funding_privkey));
     
     let remote_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
     let remote_funding_privkey = remote_keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
-    let remote_funding_pubkey = PublicKey::from_secret_key(&secp_ctx, &remote_funding_privkey);
+    let remote_funding_pubkey = BitcoinPublicKey::new(
+        PublicKey::from_secret_key(&secp_ctx, &remote_funding_privkey));
     
     let input_txid = tx_input.previous_output.txid;
     let input_vout = tx_input.previous_output.vout;

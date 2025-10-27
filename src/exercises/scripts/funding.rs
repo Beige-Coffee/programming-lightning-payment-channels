@@ -11,9 +11,9 @@ use bitcoin::blockdata::opcodes::all as opcodes;
 
 /// Exercise 13: Create a 2-of-2 multisig funding script
 /// Both parties must sign to spend from this output
-pub fn create_funding_script(pubkey1: &PublicKey, pubkey2: &PublicKey) -> ScriptBuf {
+pub fn create_funding_script(pubkey1: &BitcoinPublicKey, pubkey2: &BitcoinPublicKey) -> ScriptBuf {
     // Sort pubkeys for determinism (BOLT 3 requirement)
-    let (first, second) = if pubkey1.serialize() < pubkey2.serialize() {
+    let (first, second) = if pubkey1.inner.serialize() < pubkey2.inner.serialize() {
         (pubkey1, pubkey2)
     } else {
         (pubkey2, pubkey1)
@@ -21,8 +21,8 @@ pub fn create_funding_script(pubkey1: &PublicKey, pubkey2: &PublicKey) -> Script
     
     Builder::new()
         .push_int(2)
-        .push_key(&BitcoinPublicKey::new(*first))
-        .push_key(&BitcoinPublicKey::new(*second))
+        .push_key(first)
+        .push_key(second)
         .push_int(2)
         .push_opcode(opcodes::OP_CHECKMULTISIG)
         .into_script()

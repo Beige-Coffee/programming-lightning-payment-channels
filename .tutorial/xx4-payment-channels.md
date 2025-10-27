@@ -21,7 +21,7 @@ There are ways to increase this amount while the channel is active, called "spli
 </details>
 
 ### Sending a Payment
-⚠️ WARNING: The below example is *not* how exactly Lightning works, but it helps build our intuition. There are still some security issues below, which we will identify and fix! In the meantime, it will help us conceptualize what we're building towards.
+⚠️ WARNING: The below example is *not* actually how Lightning works, but it helps build our intuition. There are still some security issues below, which we will identify and fix! In the meantime, it will help us conceptualize what we're building towards.
 
 Now that Alice has locked her funds in a 2-of-2 multisig, she cannot move her funds out of the payment channel unless Bob agrees by providing his signature. To send a payment, Alice and Bob can simply create a new transaction that spends from the funding transaction. **Each new transaction will have an output for Alice and Bob with their respective channel balances**.
 

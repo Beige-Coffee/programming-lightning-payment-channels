@@ -6,6 +6,7 @@ use bitcoin::transaction::Version;
 use bitcoin::locktime::absolute::LockTime;
 use hex;
 use bitcoin::hashes::{Hash, sha256};
+use bitcoin::PublicKey as BitcoinPublicKey;
 
 #[test]
 fn test_bolt3_funding_script() {
@@ -15,13 +16,13 @@ fn test_bolt3_funding_script() {
     let local_pubkey_hex = "023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb";
     let remote_pubkey_hex = "030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1";
     
-    let local_pubkey = PublicKey::from_slice(
+    let local_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode(local_pubkey_hex).unwrap()
-    ).unwrap();
+    ).unwrap());
     
-    let remote_pubkey = PublicKey::from_slice(
+    let remote_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode(remote_pubkey_hex).unwrap()
-    ).unwrap();
+    ).unwrap());
     
     // Expected funding witness script from BOLT 3
     let expected_script_hex = "5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae";
@@ -57,13 +58,13 @@ fn test_bolt3_funding_transaction() {
     let change_amount = 4_989_986_080u64;
     
     // Pubkeys
-    let local_pubkey = PublicKey::from_slice(
+    let local_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap()
-    ).unwrap();
+    ).unwrap());
     
-    let remote_pubkey = PublicKey::from_slice(
+    let remote_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap()
-    ).unwrap();
+    ).unwrap());
     
     // Expected values
     let expected_txid = "8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be";
@@ -145,13 +146,13 @@ fn test_funding_script_ordering() {
     println!("\n=== Testing Funding Script Pubkey Ordering ===\n");
     
     // Test that pubkeys are correctly sorted (lexicographically)
-    let pubkey1 = PublicKey::from_slice(
+    let pubkey1 = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap()
-    ).unwrap();
+    ).unwrap());
     
-    let pubkey2 = PublicKey::from_slice(
+    let pubkey2 = BitcoinPublicKey::new(PublicKey::from_slice(
         &hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap()
-    ).unwrap();
+    ).unwrap());
     
     // Test both orderings should produce the same result
     let script1 = create_funding_script(&pubkey1, &pubkey2);

@@ -16,6 +16,7 @@ use bitcoin::Network;
 use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use std::time::Duration;
 use tokio::time::sleep;
+use bitcoin::PublicKey as BitcoinPublicKey;
 
 pub async fn run(funding_txid: String) {
     // Parse the argument as txid
@@ -36,7 +37,7 @@ pub async fn run(funding_txid: String) {
     let our_channel_keys_manager = our_node_keys_manager.derive_channel_keys(channel_index);
     let our_channel_public_keys = our_channel_keys_manager.to_public_keys();
     let local_funding_privkey = our_channel_keys_manager.funding_key;
-    let local_funding_pubkey = our_channel_public_keys.funding_pubkey;
+    let local_funding_pubkey = BitcoinPublicKey::new(our_channel_public_keys.funding_pubkey);
     let second_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
 
     // Get our Counterparty keys
@@ -45,7 +46,7 @@ pub async fn run(funding_txid: String) {
     let remote_channel_public_keys = remote_channel_keys_manager.to_public_keys();
     let remote_payment_pubkey = remote_channel_public_keys.payment_basepoint;
     let remote_funding_privkey = remote_channel_keys_manager.funding_key;
-    let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
+    let remote_funding_pubkey = BitcoinPublicKey::new(remote_channel_public_keys.funding_pubkey);
 
     // Get our commitment keys
     // we need the remote basepoints for revocation and htlc,
