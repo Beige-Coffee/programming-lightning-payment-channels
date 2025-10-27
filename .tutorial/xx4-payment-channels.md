@@ -2,9 +2,45 @@
 
 For a payment channel to operate in a trustless environment, we're going to need to ensure that the funds being transfered **off-chain** in the payment channel cannot be unilaterally moved **on-chain**. In other words, Alice should not be able to show up to Bob's bar, give him an off-chain transaction in exchange for a glass of wine, and then move the same UTXO referenced in the off-chain transaction - rendering Bob's transaction invalid.
 
-To mitigate against this vulnerability, we can begin our payment channel by locking the channel funds in a **Pay-to-Witness-Script-Hash (P2WSH) 2-of-2 multisig output** where Alice and Bob both provide one public key. We'll call this transaction our **"Funding Transaction"**. To move the funds out of this UTXO (effectively, closing the channel), Alice and Bob will need to provide both of their signatures.
+To mitigate against this vulnerability, we can begin our payment channel by locking the channel funds in a **Pay-to-Witness-Script-Hash (P2WSH) 2-of-2 multisig output** where Alice and Bob both provide one public key. We'll call this transaction our **"Funding Transaction"** because it is providing the resources needed to operate our payment channel. To move the funds out of this UTXO (effectively, closing the channel), Alice and Bob will need to *agree* to close the channel by both providing valid signatures for this transaction.
 
-**Alice will initially provide the funds for this payment channel**, so she will provide the input to this **"Funding Transaction"**. You can think of this as Alice showing up to Bob's bar and opening a tab with a specific amount. It's worth noting that Lightning does allow for "duel-funded" channels, where both parties bring funds, but we'll keep things simple by focusing on single-funded channels.
+## BOLT 2: Peer Protocol for Channel Management
+The motivating example that we'll be working off for this course involves Alice paying Bob. In this case, Alice and Bob know each other. However, in the "real world", Lightning is a decentralized protocol and can be accessed by anyone. Therefore, it's helpful to have a standardized protocol for exchanging information such that all participants on the network *speak the same langauge*.
+
+[BOLT 2](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md) defines the **channel management** portion of the shared language of Lightning. Channel managment is broken into the following three phases:
+1. **Channel Establishment**: These protocol messages define how peers should communicate their intent to open a channel with each other and which information should be exchanged as part of this process.
+2. **Normal Operation**: Once the channel is open, peers can begin to send payments to each other (or route payments *through* each other).
+3. **Closing**: At we'll learn later, there are multiple ways to "close" a channel. BOLT 2 defines protocols for what may be considered the happy path, whereby both parties agree and work together to close their channel.
+
+Another important part of the shared language, which is not thoroughly discussed in this course, is [BOLT 7: P2P Node and Channel Discovery](https://github.com/lightning/bolts/blob/master/07-routing-gossip.md).
+
+### BOLT 2: Channel Open
+When one party wants to open a channel with another, they will begin the **"Channel Establishment"** process by sending an [`open_channel`](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md#the-open_channel-message) message to their counterparty. In this case, Alice will begin the process of **creating the funding transaction** and opening a channel to Bob by sending an `open_channel` message to Bob. Some of the fields in the `open_channel` message have been left out at the moment for simplicity. However, you should be able to recognize most of the ones in the image below. Many of them are the public keys we created in an earlier exercise! Remember, Alice and Bob each have their own set of these keys. Alice will begin the process of opening a new channel by sending these keys to Bob. We'll see why shortly!
+
+Upon receiving a `channel_open` message, the recipient will decide if they would like to accept the incoming channel. There are a variety of things to consider as part of this process. For those who already have an intuition for how Lightning works, you may recognize 'feerate_per_kw' as the feerate that Alice is proposing to pay for the commitment and HTLC transactions. If Bob thinks these are either too high or too low, he can reject Alice's channel open. If this doesn't make sense yet, don't worry! We'll cover all of this in due time.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/open_channel.png" alt="open_channel" width="100%" height="auto">
+</p>
+
+### BOLT 2: Accept Channel
+If Bob accepts Alice's channel proposal, he can send back an [`accept_channel`](https://github.com/lightning/bolts/blob/master/02-peer-protocol.md#the-accept_channel-message) message, including a few of his own channel requirements. For example, Bob will specify the `minimum_depth`, which defines the number of block confirmations (on the funding transaction) that Bob requires before him and Alice can send payments. Also, he will specify the maximum number of active HTLCs he will accept. Fun fact: the protocol specification limits this value to 483! Again, if these things don't make sense just yet - don't worry!
+
+Finally, Bob will send his public keys to Alice as well!
+
+Similar to the `open_channel` message above, note that this is also a simplified version of the `accept_channel` message. Specifically, some of the fields have been left out of the visual below.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/accept_channel.png" alt="accept_channel" width="100%" height="auto">
+</p>
+
+## Building Our Funding Transaction
+
+Since Alice is opening a channel to Bob, she will initially provide the funds for this payment channel. Note, this is also known as **Channel Establishment V1**, whereby **only the channel opener can fund the channel**. **Channel Establishment V2** is a little more complicated and is not covered in this course. However, it's still worth noting that V2 allows for "dual-funded" channels whereby **both parties contribute UTXOs to fund the payment channel**.
+
+Since we're covering V1 Channel Establishment, Alice will provide the input to this **"Funding Transaction"**. You can think of this as Alice showing up to Bob's bar and opening a tab with a specific amount.
+
+Now that Alice has Bob's **funding public key**, which he provided in the `accept_channel` message, Alice can build the funding transaction by locking the funds in a 2-of-2 multisig where Alice and Bob each hold one public key. Now, since Alice cannot spend this UTXO without a signature from Bob, Bob can safely accept payments from Alice!
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/funding.png" alt="funding.png" width="100%" height="auto">
@@ -16,7 +52,7 @@ To mitigate against this vulnerability, we can begin our payment channel by lock
 
 The amount in this UTXO is going to be channel balance for this payment channel. Therefore, neither channel party will be able to send the other channel party **more than this amount** of sats.
 
-There are ways to increase this amount while the channel is active, called "splicing", but that is more advanced and will be covered later in this course.
+There are ways to increase this amount while the channel is active, called "splicing", but that is outside the scope of this course.
 
 </details>
 
@@ -48,141 +84,138 @@ If you've been following Lightning Network development, you're likely aware that
 
 </details>
 
-## ⚡️ Build A Payment Channel Funding Transaction
+## ⚡️ Build Our 2-of-2 Funding Script
+Alright, enough reading - let's code! Let's begin by completing the `create_funding_script` function located in `src/exercises/scripts/funding.rs`. This function will take the two **funding** public keys (one from Alice, one from Bob) and create a 2-of-2 multisig script.
 
-Complete `build_funding_transaction` in `src/exercises/exercises.rs`. This function takes the following parameters:
-- `txins`: A vector of transaction inputs (`Vec<TxIn>`).
-- `alice_pubkey`: Alice's public key (`&PublicKey`), which will be included in the 2-of-2 multisig.
-- `bob_pubkey`: Bob's public key (`&PublicKey`), which will be included in the 2-of-2 multisig.
-- `amount`: The channel amount. This will be an unsigned 64-bit integer `u64` structure.
+To complete this function, we'll use the `Builder` object provided by rust bitcoin. If you're unfamiliar with this object, a dropdown has been provided below to provide a brief overview with helpful hints to complete this exercise.
 
-**Remember, the funding public keys must be sorted in the 2-of-2 output such that the lexicographically lesser public key is first! For this workbook, you can assume that Alice's public key is lesser.**
+For this function to pass (and to be compatible with BOLT 3), you must sort the public keys such that `pubkey1` is *first* and is the lexicographically lesser of the two funding pubkeys in compressed format. The reason for this isn't exactly clear yet, since we haven't reviewed "asymetric commitment transactions". However, if you already know what those are, then you may recognize that the public keys are sorted such that the order is standardized and both parties can easily reconstruct the witness script without ambiguitiy as to which public key is first.
+
+Okay, you should be in a good position to tackle this exercise! Give it a try and remember you can use the step-by-step dropdowns for help.
+
+<details>
+  <summary>Click here to learn how what sorting a compressed public key lexicographically means</summary>
+
+First, let's quickly review what a public key really is... In the context of Bitcoin, a public key is a point on the secp256k1 elliptic curve. Like all points on 2-dimensional curves, the public key can be represented sa an X, Y coordinate.
+
+Furthermore, instead of representing each X and Y coordinate as 256-bit numbers, we can represent them as 32-byte hexademical values. Since the elliptic curve is symetrical around the X axis, we can actually get rid of the X coordinate and, instead, use a single byte **prefix**. `0x02` represents and even Y coordinate and `0x03` represents an odd Y coordinate. By using hexadecimal values and prefixes, we create a **compressed** version of our public key, communicating all of the necessary information but taking up less space as an X, Y coordinate of 256-bit numbers in decimal format.
+
+To determine which public key is lexicographically smaller, we can compare their byte arrays sequentially from left to right: at the first differing byte, the one with the lower value is considered smaller.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/lexicographically.png" alt="lexicographically" width="100%" height="auto">
+</p>
+
+</details>
+
+<details>
+<summary>Click to learn about Rust Bitcoin's Script Builder</summary>
+
+Rust Bitcoin is a comprehensive library for building Bitcoin applications in Rust, providing tools for building transactions, keys, scripts, and other core Bitcoin primitives. You can read about it [here](https://docs.rs/bitcoin/latest/bitcoin/).
+
+
+Rust Bitcoin provides a `Builder` [object](https://docs.rs/bitcoin/latest/bitcoin/blockdata/script/struct.Builder.html) that we can use to construct a `ScriptBuf`, which represents a Bitcoin script. It offers a handful of helper functions for adding opcodes, integers, bytes, and keys to a script:
+
+* `Builder::new()` - construct a new builder object
+* `.push_opcode(op)` - add an opcode to the script
+* `.push_int(num)` - add a number to the script
+* `.push_key(public_key)` - add a `PublicKey` to the script
+* `.push_slice(data)` - add some arbitrary data, such as a hashed pubkey, to the script
+* `.into_script()` - return the resulting `ScriptBuf` from the `Builder`  
+
+
+For example, we could build a Pay-to-Witness-Public-Key-Hash script like this:
 
 ```rust
-pub fn build_funding_transaction(
-    txins: Vec<TxIn>,
-    alice_pubkey: &PublicKey,
-    bob_pubkey: &PublicKey,
-    amount: Amount,
-) -> Transaction {
-
-  // Step 1: Build a Witness Script for the Multisig
-
-  // Step 2: Create the Funding Transaction Output
-
-  // Step 3: Define Version and Locktime
-
-  // Step 4: Build and Return the Transaction
+pub fn p2wpkh(
+    pubkey_hash: &WPubkeyHash,
+) -> ScriptBuf {
+    Builder::new()
+      .push_opcode(opcodes::OP_DUP)
+      .push_opcode(opcodes::OP_HASH160)
+      .push_slice(pubkey_hash)
+      .push_opcode(opcodes::OP_EQUALVERIFY)
+      .push_opcode(opcodes::OP_CHECKSIG)
+      .into_script()
 }
 ```
 
-This transaction will return a `Transaction` structure, as defined by rust-bitcoin.
+You can see we use `Builder::new()` to construct a new empty Builder object. From there we can chain calls to `push_opcode` and `push_slice` to build up the script we want. Finally, we call the `into_script()` method to convert the `Builder` into the `ScriptBuf` that our function needs to return.
+
+</details>
 
 ```rust
-pub struct Transaction {
-    pub version: Version,
-    pub lock_time: LockTime,
-    pub input: Vec<TxIn>,
-    pub output: Vec<TxOut>,
+pub fn create_funding_script(pubkey1: &BitcoinPublicKey, pubkey2: &BitcoinPublicKey) -> ScriptBuf {
+  // Sort pubkeys for determinism (BOLT 3 requirement)
+  let (pubkey_lesser, pubkey_larger) = if pubkey1.inner.serialize() < pubkey2.inner.serialize() {
+      (pubkey1, pubkey2)
+  } else {
+      (pubkey2, pubkey1)
+  };
+  Builder::new()
+      .push_int(2)
+      .push_key(pubkey_lesser)
+      .push_key(pubkey_larger)
+      .push_int(2)
+      .push_opcode(opcodes::OP_CHECKMULTISIG)
+      .into_script()
 }
 ```
 
 <details>
-  <summary>Step 1: Build a Witness Script for the Multisig</summary>
+  <summary>Step 1: Sort the Public Keys</summary>
 
-Use the `two_of_two_multisig_witness_script` function from the previous exercise to create a 2-of-2 multisig witness script.
-
-**Note**, to declare a variable in rust, use the `let` keyword. Also, each statement in Rust, including variable declarations, must end with a semicolon (`;`).
+First things first, we need to sort the two public keys in lexicographical order. This is a **BOLT 3 requirement** that ensures both Alice and Bob will independently construct the exact same funding script without ambiguity as to whose public key goes first.
 
 ```rust
-let witness_script = two_of_two_multisig_witness_script(alice_pubkey, bob_pubkey);
+let (pubkey_lesser, pubkey_larger) = if pubkey1.inner.serialize() < pubkey2.inner.serialize() {
+    (pubkey1, pubkey2)
+} else {
+    (pubkey2, pubkey1)
+};
 ```
+
+Here's what's happening:
+- We serialize both public keys into their byte representation using `.inner.serialize()`
+- We compare them lexicographically 
+- We assign them to `pubkey_lesser` and `pubkey_larger` based on which one is "smaller"
 
 </details>
 
 <details>
-  <summary>Step 2: Create the Funding Transaction Output</summary>
+  <summary>Step 2: Build the Funding Script</summary>
 
-Create a `TxOut` object for the funding transaction using the `build_output` function, which takes the amount and a P2WSH script derived from the witness script.
+Now we'll use the `Builder` to construct our 2-of-2 multisig script. Remember, a 2-of-2 multisig script in Bitcoin looks like:
 
-```rust
-let txout = build_output(amount, witness_script.to_p2wsh());
 ```
-- Before passing your witness script to build_output, you must call `.to_p2wsh()` on it. This converts your witness script into a proper P2WSH output script with format `OP_0 <32-byte-script-hash>`. This is required because P2WSH outputs don't contain the full witness script - only its hash.
-- `build_output` creates a `TxOut` with the specified amount and scriptPubKey.
-
-<details>
-  <summary>Click to learn more about build_output</summary>
-
-`build_output` is a helper function available to you. It takes an `amount` and `output_script` as arguments and produces a `TxOut` object that can be passed into a transaction.
-
-```rust
-pub fn build_output(amount: u64, output_script: ScriptBuf) -> TxOut {
-
-    TxOut {
-        value: Amount::from_sat(amount),
-        script_pubkey: output_script,
-    }
-}
+2 <pubkey1> <pubkey2> 2 OP_CHECKMULTISIG
 ```
 
-Below is an example of how `build_output` could be used:
+Here's how we build it:
 
 ```rust
-let output = build_output(500_000, output_script.to_p2wsh());
+Builder::new()
+    .push_int(2)
+    .push_key(pubkey_lesser)
+    .push_key(pubkey_larger)
+    .push_int(2)
+    .push_opcode(opcodes::all::OP_CHECKMULTISIG)
+    .into_script()
 ```
+
+Let's break down what each line does:
+- **`Builder::new()`**: Creates a new empty script builder
+- **`.push_int(2)`**: Adds the number of required signatures (2) to the script
+- **`.push_key(pubkey_lesser)`**: Adds the first (lexicographically smaller) public key
+- **`.push_key(pubkey_larger)`**: Adds the second (lexicographically larger) public key
+- **`.push_int(2)`**: Adds the total number of public keys (2) to the script
+- **`.push_opcode(opcodes::all::OP_CHECKMULTISIG)`**: Adds the `OP_CHECKMULTISIG` opcode, which tells Bitcoin to verify that 2 signatures match 2 of the 2 provided public keys
+- **`.into_script()`**: Converts the builder into a `ScriptBuf` that we return
 
 </details>
 
-</details>
 
-<details>
-  <summary>Step 3: Define Version and Locktime</summary>
 
-Set the transaction version to 2 and locktime to zero using the provided rust-bitcoin enums.
-
-```rust
-let version = Version::TWO;
-let locktime = LockTime::ZERO;
-```
-- `Version::TWO` sets the transaction version to 2, which supports BIP-68 relative locktimes.
-- `LockTime::ZERO` indicates no timelock on the transaction.
-
-</details>
-
-<details>
-  <summary>Step 4: Build and Return the Transaction</summary>
-
-Construct the `Transaction` object using the `build_transaction` helper function, with the defined version, locktime, inputs, and the output in a vector.
-
-```rust
-pub fn build_transaction(version: Version, locktime: LockTime, tx_ins: Vec<TxIn>, tx_outs: Vec<TxOut>) -> Transaction {
-    Transaction {
-        version: version,
-        lock_time: locktime,
-        input: tx_ins,
-        output: tx_outs,
-    }
-}
-```
-
-Remember, `build_transaction` expects `tx_outs` to be a **vector** (think: list) of `TxOut` objects. To wrap your output in a vector, you can use the following notation:
-
-```rust
-vec![output]
-```
-
-Below is an example of what it would look like to use the `build_transaction` helper function.
-```rust
-let tx = build_transaction(
-    version,
-    locktime,
-    txins,
-    vec![txout],
-);
-```
-
-</details>
 
 ## 👉 Get Our Funding Transaction
 Now for the fun part! Once your `build_funding_transaction` is passing the tests, go to a **Shell** in your Repl and type in the below command.

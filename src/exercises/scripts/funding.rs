@@ -13,16 +13,15 @@ use bitcoin::blockdata::opcodes::all as opcodes;
 /// Both parties must sign to spend from this output
 pub fn create_funding_script(pubkey1: &BitcoinPublicKey, pubkey2: &BitcoinPublicKey) -> ScriptBuf {
     // Sort pubkeys for determinism (BOLT 3 requirement)
-    let (first, second) = if pubkey1.inner.serialize() < pubkey2.inner.serialize() {
+    let (pubkey_lesser, pubkey_larger) = if pubkey1.inner.serialize() < pubkey2.inner.serialize() {
         (pubkey1, pubkey2)
     } else {
         (pubkey2, pubkey1)
     };
-    
     Builder::new()
         .push_int(2)
-        .push_key(first)
-        .push_key(second)
+        .push_key(pubkey_lesser)
+        .push_key(pubkey_larger)
         .push_int(2)
         .push_opcode(opcodes::OP_CHECKMULTISIG)
         .into_script()
