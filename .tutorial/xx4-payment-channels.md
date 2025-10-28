@@ -496,23 +496,25 @@ You should get an output like the below. See if you can map this output back to 
 
 ## Problem: Potential Loss of Funds
 
-Take another look at the funding transaction output below. How can Alice lose all of her funds in this setup?
+Take another look at the funding transaction output below. Do you notice a security flaw?
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/funding.png" alt="funding.png" width="100%" height="auto">
 </p>
 
+#### Question: How can Alice lose all of her funds in this setup?
 <details>
   <summary>Answer</summary>
 
-If Bob stops responding or refuses to cooperate, then there's no way for Alice to retrieve her funds from this payment channel. This is because, to spend from a 2-of-2 multisig, you need signatures from *both* parties.
+If Bob stops responding or refuses to cooperate, then there's no way for Alice to retrieve her funds from this payment channel! This is because, to spend from a 2-of-2 multisig, you need signatures from *both* parties.
 </details>
 
 
-How can we address this problem for Alice?
+#### Question: How can we fix this security flaw?
 
 <details>
   <summary>Answer</summary>
 
 There are a few different ways to go about this, but the general solution is that we will need to create a way for Alice to recieve a "refund" or unilateral exit from the channel. Can you think of how we can implement this?
+
 </details>
