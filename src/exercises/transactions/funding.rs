@@ -35,28 +35,29 @@ pub fn create_funding_transaction(
     
     // Convert to P2WSH (pay-to-witness-script-hash)
     let funding_script_pubkey = funding_script.to_p2wsh();
+
+    let tx_input = TxIn {
+            previous_output: OutPoint {
+                txid: input_txid,
+                vout: input_vout,
+            },
+            script_sig: ScriptBuf::new(), // Empty for SegWit
+            sequence: Sequence::MAX,      // 0xffffffff (RBF disabled)
+            witness: Witness::new(),      // Witness will be added when signing
+        };
+
+    let output = TxOut {
+            value: Amount::from_sat(funding_amount_sat),
+            script_pubkey: funding_script_pubkey,
+        };
+
     
     // Create the transaction
     Transaction {
         version: Version::TWO,
         lock_time: LockTime::ZERO,
-        input: vec![
-            TxIn {
-                previous_output: OutPoint {
-                    txid: input_txid,
-                    vout: input_vout,
-                },
-                script_sig: ScriptBuf::new(), // Empty for SegWit
-                sequence: Sequence::MAX,      // 0xffffffff (RBF disabled)
-                witness: Witness::new(),      // Witness will be added when signing
-            }
-        ],
-        output: vec![
-            TxOut {
-                value: Amount::from_sat(funding_amount_sat),
-                script_pubkey: funding_script_pubkey,
-            }
-        ],
+        input: vec![tx_input],
+        output: vec![output],
     }
 }
 

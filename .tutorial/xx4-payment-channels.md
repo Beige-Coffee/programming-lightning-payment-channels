@@ -85,13 +85,42 @@ If you've been following Lightning Network development, you're likely aware that
 </details>
 
 ## ⚡️ Build Our 2-of-2 Funding Script
-Alright, enough reading - let's code! Let's begin by completing the `create_funding_script` function located in `src/exercises/scripts/funding.rs`. This function will take the two **funding** public keys (one from Alice, one from Bob) and create a 2-of-2 multisig script.
+Alright, enough reading - let's code! Let's begin by completing the `create_funding_script` function located in `src/exercises/scripts/funding.rs`. This function will take the two **funding** public keys (one from Alice, one from Bob) and create a 2-of-2 multisig script. Each funding key is type `PublicKey`, which is provided by Rust Bitcoin. See the dropdown below for more information on this type.
 
 To complete this function, we'll use the `Builder` object provided by rust bitcoin. If you're unfamiliar with this object, a dropdown has been provided below to provide a brief overview with helpful hints to complete this exercise.
 
 For this function to pass (and to be compatible with BOLT 3), you must sort the public keys such that `pubkey1` is *first* and is the lexicographically lesser of the two funding pubkeys in compressed format. The reason for this isn't exactly clear yet, since we haven't reviewed "asymetric commitment transactions". However, if you already know what those are, then you may recognize that the public keys are sorted such that the order is standardized and both parties can easily reconstruct the witness script without ambiguitiy as to which public key is first.
 
 Okay, you should be in a good position to tackle this exercise! Give it a try and remember you can use the step-by-step dropdowns for help.
+
+<details>
+  <summary>Click to see Rust Bitcoin's PublicKey Type</summary>
+
+The `PublicKey` type from the rust-bitcoin library is a wrapper around a secp256k1 public key that provides Bitcoin-specific functionality. You can read more about it [here](https://docs.rs/bitcoin/latest/bitcoin/struct.PublicKey.html).
+
+```rust
+pub struct PublicKey {
+    pub compressed: bool,
+    pub inner: PublicKey,
+}
+```
+
+Here are the key things to understand about this type:
+
+1. **`inner`** - This is the actual secp256k1 public key. When you see `pubkey.inner`, you're accessing the underlying elliptic curve public key that can be used for cryptographic operations.
+
+2. **Compression** - Bitcoin public keys can be represented in two formats: compressed (33 bytes) or uncompressed (65 bytes). The `PublicKey` type handles this automatically. In Lightning, we always use compressed public keys.
+
+3. **Serialization** - The `PublicKey` type provides methods to serialize the key into bytes, which is useful when we need to compare keys or include them in scripts.
+
+For example, when we need to compare two public keys (like for sorting), we can serialize them:
+```rust
+let pubkey_bytes = pubkey.inner.serialize();
+```
+
+This gives us a byte representation that we can compare lexicographically, which is exactly what we need for BOLT 3 compliance!
+
+</details>
 
 <details>
   <summary>Click here to learn how what sorting a compressed public key lexicographically means</summary>
@@ -215,18 +244,192 @@ Let's break down what each line does:
 </details>
 
 
+## ⚡️ Build Our Funding Transaction
+Now that we have our funding script, let's create our funding transaction and open our payment channel!
+
+For this exercise, we'll use Rust Bitcoin to create our very own `Transaction`. This function takes the following inputs:
+- `input_txid`: This is the TxID for the input that is funding this transaction. In our ongoing example, you can imagine this input is coming from Alice, who is opening (and funding) the channel.
+- `input_vout`: This is the index of the input UTXO. Remember, each input was previously an ouput on another transaction. Therefore, to identify the output, we need the TxID *and* the output index. 
+- `funding_amount_sat`: This is the amount that we'd like lock to our 2-of-2 multisig script.
+- `local_funding_pubkey`: This is the public key of the channel opener (Alice, in this case), which will be included in the 2-of-2 multisig.
+- `remote_funding_pubkey`: This is the public key of the channel acceptor (Bob, in this case), which will be included in the 2-of-2 multisig.
+
+To successfully complete this exercise, you'll need to return a `Transaction` type. For this exercise, we'll keep things simple and won't worry about adding any signature data to the witness - though we will dig into these details later!
+
+<details>
+  <summary>Click to see Rust Bitcoin's Transaction Type</summary>
+
+The `Transaction` type from the rust-bitcoin library represents a Bitcoin transaction. You can read more about it [here](https://docs.rs/bitcoin/latest/bitcoin/struct.Transaction.html).
+
+```rust
+pub struct Transaction {
+    pub version: Version,
+    pub lock_time: LockTime,
+    pub input: Vec<TxIn>,
+    pub output: Vec<TxOut>,
+}
+```
+
+Here's what each field does:
+
+1. **`version`** - The transaction version number. This tells Bitcoin nodes which rules to use when validating the transaction. For most transactions today, we use version 2, which enables features like BIP 68 (relative lock times).
+
+2. **`lock_time`** - Specifies the earliest time or block height when this transaction can be included in the blockchain. A lock_time of 0 means the transaction can be mined immediately. Lightning uses lock_time extensively to enable time-based spending conditions!
+
+3. **`input`** - A vector of transaction inputs (`Vec<TxIn>`). Each input spends a previous transaction output (UTXO). For our funding transaction, Alice will provide an input that spends one of her existing UTXOs to fund the channel.
+
+4. **`output`** - A vector of transaction outputs (`Vec<TxOut>`). Each output specifies an amount of bitcoin and a script that defines how those funds can be spent. For our funding transaction, we'll create an output locked in a 2-of-2 multisig script!
+
+Together, these four fields define everything about a Bitcoin transaction: what version rules to follow, which coins are being spent (inputs), where they're going (outputs), and when the transaction can be mined (lock_time).
+
+</details>
+
+```rust
+pub fn create_funding_transaction(
+    input_txid: Txid,
+    input_vout: u32,
+    funding_amount_sat: u64,
+    local_funding_pubkey: &BitcoinPublicKey,
+    remote_funding_pubkey: &BitcoinPublicKey,
+) -> Transaction {
+    // Create the funding script (2-of-2 multisig)
+    let funding_script = create_funding_script(local_funding_pubkey, remote_funding_pubkey);
+
+    // Convert to P2WSH (pay-to-witness-script-hash)
+    let funding_script_pubkey = funding_script.to_p2wsh();
+
+    let tx_input = TxIn {
+            previous_output: OutPoint {
+                txid: input_txid,
+                vout: input_vout,
+            },
+            script_sig: ScriptBuf::new(), // Empty for SegWit
+            sequence: Sequence::MAX,      // 0xffffffff (RBF disabled)
+            witness: Witness::new(),      // Witness will be added when signing
+        };
+
+    let output = TxOut {
+            value: Amount::from_sat(funding_amount_sat),
+            script_pubkey: funding_script_pubkey,
+        };
+
+
+    // Create the transaction
+    Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::ZERO,
+        input: vec![tx_input],
+        output: vec![output],
+    }
+}
+```
+<details>
+  <summary>Step 1: Create the Funding Script</summary>
+
+First things first, we need to create our 2-of-2 multisig script using the function we just wrote. This script will define how the funds can be spent, protecting Bob from Alice double-spending the bitcoin in their payment channel.
+
+```rust
+let funding_script = create_funding_script(local_funding_pubkey, remote_funding_pubkey);
+```
+
+Remember, `create_funding_script` handles the sorting for us and returns a `ScriptBuf` containing our 2-of-2 multisig script. Nice!
+
+</details>
+
+<details>
+  <summary>Step 2: Convert to P2WSH</summary>
+
+Now we need to convert our funding script into a Pay-to-Witness-Script-Hash (P2WSH) output. Instead of putting the entire script in the output, we put a *hash* of the script. The actual script is povided later when spending.
+
+```rust
+let funding_script_pubkey = funding_script.to_p2wsh();
+```
+
+The `to_p2wsh()` method is provided by Rust Bitcoin and made available on our `ScriptBuf` object. It hashes our script and wraps it in the proper P2WSH format. This is what will actually go into our transaction output.
+
+</details>
+
+<details>
+  <summary>Step 3: Create the Transaction Input</summary>
+
+Next, we need to specify where the funds are coming from. Alice is providing an input that spends one of her existing UTXOs. We create a `TxIn` struct that references this previous output.
+
+As mentioned earlier, we won't worry about adding the signature data to the witness for now, so you can leave the witness empty by simply initializing the `TxIn` object with `Witness::new()` for the `witness` field.
+
+```rust
+let tx_input = TxIn {
+    previous_output: OutPoint {
+        txid: input_txid,
+        vout: input_vout,
+    },
+    script_sig: ScriptBuf::new(), 
+    sequence: Sequence::MAX,      
+    witness: Witness::new(),
+};
+```
+
+Let's break the `TxIn` object a little more. All of these fields and types are defined in Rust Bitcoin:
+- **`previous_output`**: This `OutPoint` specifies exactly which UTXO we're spending by providing its transaction ID (`txid`) and output index (`vout`).
+- **`script_sig`**: We leave this empty because we're using SegWit! In SegWit transactions, the signature goes in the witness field instead.
+- **`sequence`**: We set this to `Sequence::MAX` (0xffffffff), which disables Replace-By-Fee (RBF) for this input.
+- **`witness`**: We initialize an empty witness. The actual signature data will be added here later when Alice signs the transaction.
+
+</details>
+
+<details>
+  <summary>Step 4: Create the Transaction Output</summary>
+
+Now we create the output that will lock the funds in our 2-of-2 multisig. This output specifies how many sats are being locked in our payment channel.
+
+As you can see in the Type definition for a `TxOut` object below, Rust Bitcoin requires that the value field be of Type [`Amount`](https://docs.rs/bitcoin/latest/bitcoin/struct.Amount.html), so we need to cast our `funding_amount_sat`, which is a to a 64-bit unsigned integer, to an `Amount` type.
+
+```rust
+let output = TxOut {
+    value: Amount::from_sat(funding_amount_sat),
+    script_pubkey: funding_script_pubkey,
+};
+```
+
+</details>
+
+<details>
+  <summary>Step 5: Construct and Return the Transaction</summary>
+
+Finally, let's bundle everything together into a `Transaction` and return it!
+
+To do this, we'll first need to set the transaction version to 2, which supports BIP-68 relative locktimes, and locktime to zero using the provided Rust Bitcoin enums.
+
+Also, note that the `input` and `output` fields require a vector, so we'll need to wrap our input and output in a `vec![]`.
+
+```rust
+Transaction {
+    version: Version::TWO,
+    lock_time: LockTime::ZERO,
+    input: vec![tx_input],
+    output: vec![output],
+}
+```
+
+</details>
+
 
 
 ## 👉 Get Our Funding Transaction
-Now for the fun part! Once your `build_funding_transaction` is passing the tests, go to a **Shell** in your Repl and type in the below command.
+Now for the fun part! Recall how, at the beggining of this course, we said we'd play the part of Alice in this payment channel? We'll, that's exactly what we're going to do. Let's go ahead and create the funding transaction for our channel!
+
+Once your `create_funding_transaction` is passing the tests, go to a **Shell** in your Repl and type in the below command.
 
 ```
 cargo run -- funding
 ```
 
-Under the hood, this command fetches a UTXO from our regtest wallet and creates a two-of-two multisig transaction using the function we just created. In case you're wondering which public keys are being used for "Alice" and "Bob", the background code in this Replit is creating new private-public key pairs for Aice and Bob. This will be helpful in the future, as we will need to generate signatures for the off-chain "payments".
+Under the hood, this command is running the code in `src/interactive/funding.rs` - feel free to explore this file, if you'd like!
 
-Once you run it, you should see an output like this...
+If you do check out the file, you'll see that it's creating two sets of keys - one for us (Alice) and one for Bob. To do this, it's using the functions we created earler! Once the keys are created, the code fetches a UTXO from our regtest wallet and creates a two-of-two multisig funding transaction using the function we just created. Since the UTXO is coming from our regtest environment, we're passing the `Transaction` created by our `create_funding_transaction` function to Bitcoin Core and asking it to sign the transaction. This is done via the `signrawtransactionwithwallet` RPC command. The resulting transaction, which is ready to be broadcasted, is returned to the console once signed.
+
+NOTE: All future transactions that we create as part of our Lightning implementation will be signed using signing code that we'll write, so don't feel bad if you wanted to get in the weeds and sign transactions - we'll do this shortly!
+
+Once you run the command, you should see an output like this...
 
 ```
 Tx ID:
