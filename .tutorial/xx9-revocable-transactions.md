@@ -56,68 +56,91 @@ Okay, now that we've reviewed this gist of how our penalty mechanism works, let'
 This way, each party provides a way for the counterparty to claim their funds ***if and only if*** they cheat and publish an old transaction.
 
 
-### Starting With The End In Mind
-Buckle up! We're diving deep!
+### Calculating A Revocation Public Key And Private Key
 
-Just as we've done earlier, let's start with the end in mind. Remember how we started our Lightning journey by generating various **basepoints** and **secrets**? Well, two of those basepoints are going to come in handy right now. Specifically, the **delayed payment basepoint** and the **revocation basepoint**. We'll use those basepoints to calculate ***new*** public keys for each commitment transaction, which are deterministically derived from the basepoints but not equal to the basepoints themselves. This is why, in the diagram below, the legend shows Alice and Bob's **delayed payment public key** and the **revocation public key** as `Ax` and `Bx`, where `x` is meant to be replaced with the number of the commitment. Remember, this is just a visual representation of the fact that the public keys will change for each commitment, but they are derived from the same basepoint. We'll learn how in just a moment!
+Below is a diagram showing, roughly, how Alice and Bob can exchange public and private key information in such a way that they satisfy the properties listed above. In my humble opinion, this diagram does a pretty good job of explaining how the process of revoking old commitment transactions work, while also tying it back to the public and private keys that we created at the beggining of the course.
 
-NOTE: This is different than what we did for the **payment basepoint**! When we create outputs for our conterpary, we simply lock to their **payment basepoint** to make things easier for them. This is easier for them because, as you may have guessed, if we deterministically derive new public keys for each state, that means we need to remember some sort of **state data** so that we can correctly derive the private key to spend from the public key in any given state. Since the security model of Lightning is to protect our counterpary from *us* cheating, then it makes sense to simply lock their ouputs to their **payment basepoint**, which does not change for each commitment.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_keys_primer1.png" alt="revocation_keys_primer1" width="100%" height="auto">
-</p>
-
-Now, when we advance to a new channel state, we'll use new **delayed payment public keys** and the **revocation public keys**, derived from the same basepoints. This is demonstrated in the visual below by showing `A2` for the public keys in Alice's version of the commitment transaction and `B2` for the public keys in Bob's version of the commitment transaction.
+When you see a gear icon (see below for example), it means we're performing some type of algorithm or cryptographic operation. During our first pass through, we'll explain what the algorithm *does*, but we won't review the specific function just yet. After we discuss the overall flow, we'll dig into the actual equations and, of course, implement them ourselves in code!
 
 <p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_keys_primer2.png" alt="revocation_keys_primer2" width="100%" height="auto">
+  <img src="./tutorial_images/operation.png" alt="operation" width="5%" height="auto">
 </p>
 
-
-## Calculating A Revocation Public Key And Private Key
-
-So, now let's get to the question we've all been waiting for... **"how can we create revocation public keys such that they satisfy the principles below"**?
-1) Create public keys, which we'll call **revocation public keys**, that Alice or Bob can spend from if their counterparty attempts to cheat.
-2) Neither Alice nor Bob should know the private key to their own **revocation public key**.
-3) When advancing to a new channel state, Alice and Bob should be able to obtain (or, more specifically, calculate) the private key to **their counterparty's revocation public key**. 
-
-Below is a diagram showing, roughly, how Alice and Bob can exchange public and private key information in such a way that they satisfy the properties listed above (ex: neither party knows the private key to their own revocation public key).
-
-Note, this diagram does not go into the exact protocol details for how each key is derived. Instead, it's meant to further build your intuition as to how revocation keys work. For this explanation, we're skipping over how these keys are generated. If you're interested in learning how all Lightning keys can be derived from a single seed, please see the optional section in the appendix, titled "Revocation Keys Deep Dive".
-
-Also, note that the below diagram uses the following terminology:
-- **Point** (ex: Revocation Basepoint, Per-Commitment Point)
-- **Secret** (ex: Revocation Basepoint Secret, Per-Commitment Secret)
-
-A "Point" is a public key on the secp256k1 curve, while a "Secret" is a private key. We use this terminology because these "points" and "secrets" are used to derive the actual revocation public and private keys that are used in the script, but they are not the actual keys themselves. 
-
+Let's get to it!
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/revocationSteps.png" alt="revocationSteps" width="100%" height="auto">
 </p>
 
-### Step 1
-At the start of Alice and Bob's Lightning channel, each party will generate the following set of public and private keys:
-- **Revocation Basepoint and Revocation Basepoint Secret**: This is a public/private key pair that is constant across the entire length of a payment channel. As we'll soon see, this will be one piece that we'll use to create a new key pair for the revocation path.
+<details>
+  <summary>Click to see how the above diagram relates to the "gentle" introduction</summary>
 
-For *each commitment transaction (each new channel state)*, Alice and Bob will each generate the following set of public and private keys:
-- **Per-Commitment Point and Per-Commitment Secret**: For each commitment transaction, Alice and Bob will generate a new public/private key pair that they will use to tweak the Revocation key pair, thus creating unique key pairs for each commitment state.
+Honestly, this diagram might be an absolute mess and make little sense. If that's the case, I appologize in advance. Otherwise, I hope it's useful and makes it a little more clear how all of the cryptographic material connects back to the "gentle" introduction we just reviewed.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/diagram_connection.png" alt="diagram_connection" width="100%" height="auto">
+</p>
+
+</details>
+
+⚠️ **DISCLAIMER: The "Steps" outlined below (and in the diagram above) are not stricly meant to convey protocol steps. For example, "Step 4" is not meant to signal that all of the operations outlined in Step 4 happen, more or less, sequentially and as part of one atomic operation. Instead, the "Steps" are meant to help us break up each part of the process into an orderly sequence.**
+
+### Step 1
+By now, Alice and Bob's set of "Channel Keys" should look pretty familiar! For the revocation process, the following secrets and keys are going to be used:
+- **Revocation Basepoint and Revocation Basepoint Secret**: This is a public/private key pair that is constant across the entire length of our payment channel.
+- **Commitment Seed**: This is a random 256-bit secret. As we'll soon see, **we'll use this seed to create a unique public key for each commitment state**.
+  - **Protocol-Defined Starting Index**: BOLT 3 describes how to create a new secret for each commitment state by combining our **commitment seed** with an always-decreasing index, which starts at 281474976710655.  
+
+NOTE: For simplicity, we'll break from the prior color scheme and represent Alice's/Bob's secrets and keys using the following colors:
+- **Alice's** Revocation Basepoint & Basepoint Secret: **Blue**
+- **Alice's** Per Commitment Point and Per Commitment Secret: **Light Blue**
+- **Alice's** Revocation Secret and Revocation Public Key: **Purple**
+- **Bob's** Revocation Basepoint & Basepoint Secret: **Red**
+- **Bob's** Per Commitment Point and Per Commitment Secret: **Light Red**
+- **Bob's** Revocation Secret and Revocation Public Key: **Gold**
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_step_1.png" alt="revocation_step_1" width="100%" height="auto">
+</p>
 
 ### Step 2
-When Alice and Bob set up their channel, they will exchange the following keys:
-- **Revocation Basepoint**
-- **Per-Commitment Point**
+When Alice and Bob open a channel, **they will create a unique public/private key pair for each commitment transaction, known as the **Per-Commitment Point** and **Per-Commitment Secret**. We'll review the actual key derivation process shortly, but, for now, it's sufficient to understand that each public/private key pair is created by running your **commitment seed** and **index** through an algorithm. Per BOLT 3, all channels start with an index of 281474976710655, and this index is decremented by 1 for each new state.
 
-Once exchanged, each party can combine **their partner's Revocation Basepoint** with **their Per-Commitment Point**, creating a new public key **that neither of them know the secret key to**. This is what they will use in the revocation spending path of their `to_local` output.
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_step_2.png" alt="revocation_step_2" width="100%" height="auto">
+</p>
 
 ### Step 3
+Once Alice and Bob create their respective **Per-Commitment Points** and **Per-Commitment Secrets** for channel state 1, they will exchange the following keys...
+- Alice will give Bob her:
+  - **Revocation Basepoint**
+  - **Per-Commitment Point** for Channel State 1.
+- Bob will give Alice his:
+  - **Revocation Basepoint**
+  - **Per-Commitment Point** for Channel State 1.
+
+Remember, the **Revocation Basepoint** does not change during the entire duration of channel operation! We'll see why this is useful in just a moment.
+
+Once exchanged, each party can combine **their partner's Revocation Basepoint** with **their Per-Commitment Point**, creating a new public key **that neither of them know the secret key to**. This is what they will use in the revocation spending path of their `to_local` output!
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_step_3.png" alt="revocation_step_3" width="100%" height="auto">
+</p>
+
+### Step 4
 When Alice and Bob decide to advance to a new channel state, they will exchange the following keys:
 - **The Current State's Per-Commitment Secret**
-- **The Next State's Per-Commitment Point**
+- **The Next State's Per-Commitment Point**: To calculate the next Per Commitment Point, each channel party will first calculate the next state's Per Commitment Secret by running their **commitment seed** and **the new channel state index** through the [bit-flipping algorithm described in BOLT 3](https://github.com/lightning/bolts/blob/master/03-transactions.md#per-commitment-secret-requirements). Once they get the Per Commitment Secret, they can simply multiply that by the generator point, *G*, to get the Per Commitment Point.
 
-By doing this, each party provides **their counterparty** with the neccessary information (the current state's per-commitment secret) to calculate the **their revocation public key**. In other words, Alice gives Bob the information needed for Bob to calculate Alice's **revocation private key** from the prior state. Therefore, Bob can spend from Alice's revocation path if she ever publishes the associated commitment transaction, which is now considered old since they are moving to a new state.
+By exchaning this information, each party provides **their counterparty** with the neccessary information (the prior state's per-commitment secret) to calculate the **their revocation public key**. In other words, Alice gives Bob the information needed for Bob to calculate Alice's **revocation private key** from their prior state. Therefore, Bob can spend from Alice's revocation path if she ever publishes the associated commitment transaction, which is now considered old since they are moving to a new state.
 
-They give their counterparty the next Per Commitment Point so that they can build the new state's commitment transactions. This process continues for each new commitment state.
+To make this more explicit, note that the revocation key that Alice uses in her version of the transaction is created using **Bob's Revocation Basepoint** and **Alice's Per Commitment Point**. Since Bob will NEVER reveal his **Revocation Basepoint Secret** to Alice, she will never be able to calculate the private key to the public key in her spending path. However, once Bob receives **Alice's Per Commitment Point**, he can calculate the private key because he also, of course, knows **his Revocation Basepoint Secret**.
+
+Also, they give their counterparty the next **Per Commitment Point**. The reason for this is not exactly obvious in the visual, since Bob doesn't need **Alice's Per Commitment Point** to create the revocation public key in his transaction. However, he does need it to calculate the revocation public key in Alice's version. Since Bob needs to provide Alice with a signature for every new commitment state, he needs to build her transactions locally to create that signature!
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_step_4.png" alt="revocation_step_4" width="100%" height="auto">
+</p>
 
 ## ⚡️ Generate A Revocation Public Key
 For this exercise, we'll get our hands dirty and implement a function that creates a revocation public key for a given channel state.
