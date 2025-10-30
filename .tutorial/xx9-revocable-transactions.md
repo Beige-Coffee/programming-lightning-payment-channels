@@ -2,49 +2,84 @@
 
 ## Introducing Our Penalty Mechanism (Gently)
 
-Before digging into the details of our penalty mechanism, let's review how things work at a higher level. To do this, we'll have to break a core tenent of Bitcoin and introduce a trusted third party. Don't worry, this trusted third party is *only* for educational purposes, as it will make it much easier to conceptually grasp how the penalty mechanism works. Once we have an intuitive understanding of what is going on, we'll replace the trusted third party with a series of cryptographic operations, making everything trustless again!
-
-
+Now that we have a stronger understanding of asymetric commitment transactions, we can begin to implement our penalty mechanism. Before digging into cryptography and getting in the weeds, let's review how things work at a higher level. To do this, we'll temporarily break a core tenent of Bitcoin and introduce a trusted third party. Don't worry, this trusted third party is *only* for educational purposes, as it will make it much easier to conceptually grasp how the penalty mechanism works. Once we have an intuitive understanding of what is going on, we'll replace the trusted third party with a series of cryptographic operations, making everything trustless again!
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/simple_revocation_key.png" alt="simple_revocation_key" width="100%" height="auto">
 </p>
 
-
 ### Step 1
-Imagine that, for each commitment transaction, a trusted third party generates a unique public key for Alice and a unique public key for Bob. **Alice and Bob take their respective public keys and add them to their own output scripts**. We'll call the spending path with this public key the **"revocation path"** - we'll see why shortly!
+Imagine that, for each commitment transaction, a trusted third party generates a unique public key for Alice and a unique public key for Bob. **Alice and Bob take their respective public keys and add them to the output scripts on their own version of the commitment transaction that pays themselves**. In other words, Alice will add this public key to the output that holds her side of the channel balance. Bob will similarly add his public key to the output on his version of the commitment transaction that pays him. You can see this visually if you look at the image above. Specifically, you'll see that:
+- Alice create two spending paths on her output.
+  - One is locked to the new public key, provided by the third party. We'll call this the **"revocation path"**.
+  - The second is locked to Alice's **delayed payment public key**. It's called the delayed payment public key because, as you can see, Alice cannot spend from this path until after `to_self_delay` blocks have been mined. This delays is specified as a relative delay, which starts once Alice's version of the commitment transaction is mined. 
 
-**NOTE: At this point, neither Alice nor Bob know the private keys to either of the public keys that the trusted third party provided**. This is a *very* important property because it means that, if either party attempts to broadcast a transaction from the **current state**, neither would know the private key to spend from the "revocation path". This makes it safe to publish the *current* state. Since your counterparty doesn't have the private key to spend from the revocation path, the only possible spending path would be to yourself with your private key!
+The reason for adding the delay will soon become clear, if it's not already!
+
+**NOTE: At this point, neither Alice nor Bob know the private keys to either of the public keys that the trusted third party provided**. This is a ***very*** important property because it means that, if either party attempts to broadcast a transaction from the **current state**, neither would know the private key to spend from the "revocation path". This makes it safe to publish the *current* state. Since your counterparty doesn't have the private key to spend from the revocation path, the only possible spending path would be to yourself with your private key! For example, if Alice published her version of the commitment transaction from Channel State 1 ***before*** moving on to Channel State 2, then neither Alice nor Bob can spend from the "revocation path". Therefore, Alice's funds are safe because only she can generate a signature to spend from the delayed payment path!
 
 ### Step 2
 When Alice and Bob decide to move to a new channel state, the trusted third party will do the following:
 1) Provide a new public key for both Alice and Bob to use in their new commitment transactions (for the new channel state). As in step 1, these public keys will go in their respective "revocation paths".
-2) Provide Alice and Bob the private keys to **the other person's prior state commitment transaction**. By doing this, Alice can spend from Bob's revocation path, and Bob can spend from Alice's revocation path. **However, neither Alice nor Bob can spend from their own revocation path**.
+2) Provide Alice and Bob the private keys to **the prior state of the other person's commitment transaction**. For example, in the diagram above, once we reach Channel State 2, Alice will have the private key to spend from Bob's revication path, and Bob will have the private key to spend from Alice's revocation path. **However, neither Alice nor Bob can spend from their own revocation path**.
 
 ### Step 3 (If someone cheats)
-If Alice or Bob cheat, that, by definition, means they published an old commitment state. For example, let's say we're in **Commitment State 2**, but Alice publishes her hold commitment transaction from **Commitment State 1**. She is attempting to steal 1M sats back from Bob by publishing an old transaction that does not have these sats on Bob's side of the channel. Since our trusted third party gave Bob the private key to spend from Alice's **revocation path**, Bob can generate a signature to claim Alice's `to_local` output. Remember, Alice does not have the private key for this spending path, so she cannot claim her output via the **revocation path**.
+If Alice or Bob cheat, that, **by definition**, means they published an old commitment state. For example, let's say we're in **Commitment State 2**, but Alice publishes **her** hold commitment transaction from **Commitment State 1**. She is attempting to steal 1M sats back from Bob by publishing an old transaction that does not have these sats on Bob's side of the channel. Since our trusted third party gave Bob the private key to spend from **Alice's revocation path**, Bob can generate a signature to claim Alice's `to_local` output. Remember, Alice does not have the private key for this spending path, so she cannot claim her output via the **revocation path**.
 
-The above mechanism ensures that old commitment states are effectively revoked, because publishing old commitment states risks losing all of your funds in the channel. Cool, eh? If you're noticing room for improvement in the above witness script, you'd be right! We'll fix that shortly.
+The above mechanism ensures that old commitment states are effectively revoked, because publishing old commitment states risks losing all of your funds in the channel. Cool, eh? 
+
+#### Question: Why is the delayed payment spending path delayed with a relative timelock? Why do we need a timelock at all?
+<details>
+  <summary>Answer</summary>
+
+The timelock is a crucial part of Lightning's security model. To see why, let's imagine there was no timelock and Alice cheats by publishing an old commitment state. In this scenario, there is nothing stopping Alice from spending her output immediately! Therefore, even though Bob has the private key to spend from the "revocation path", he wouldn't have sufficient time to act, so it's effectively worthless. Furthermore, you could imagine a scenario where Alice submits the transaction directly to a miner, so Bob will never even see the old commitment state in his mempool! He'll only see it after it's mined. 😞
+
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_no_timelock.png" alt="revocation_no_timelock" width="80%" height="auto">
+</p>
+
+By adding a relative timelock, **which doesn't start until the transaction is mined**, we guarentee that Bob has sufficient time to spot the transaction if it's mined. For example, if the delay is 2016 blocks (~2 weeks), then Alice cannot re-claim her funds until 2 weeks *after* the transaction has been mined. This gives Bob plently of time to spend from the revocation path, if he has the private key.
+
+If you've ever heard that Lightning has a "liveness" requirement - this is it! In other words, so safely operate on the Lightning network, you need to be regularly online and monitoring the blockchain so that you can spot if your counterparty attempts to cheat you. NOTE, you don't need to be "live" 24/7 to operate safely. As we saw in the above example, you just need to come online and check the blocks during the 2-week window to spot if your counterparty cheated. That said, it's still best practice to be consistently connected and monitoring the blockchain.
+
+</details>
+
 
 ## Introducing Revocation Keys
 
-Okay, now that we've reviewed this gist of how our penalty mechanism works, let's inch our way towards the actual protocol implementation by removing the third party. Remember, our end goal is to:
+Okay, now that we've reviewed this gist of how our penalty mechanism works, let's inch our way towards the actual protocol implementation by removing the third party and replacing them with cryptography. Remember, our end goal is to:
 1) Create public keys, which we'll call **revocation public keys**, that Alice or Bob can spend from if their counterparty attempts to cheat.
 2) Neither Alice nor Bob should know the private key to their own **revocation public key**.
-3) When advancing to a new channel state, Alice and Bob should be able to obtain (or, more specifically, calculate) the private key to their counterparty's **revocation public key**. 
+3) When advancing to a new channel state, Alice and Bob should be able to obtain (or, more specifically, calculate) the private key to **their counterparty's revocation public key**. 
 
-This way, each party provides a way for the counterparty to claim their funds ***if and only if*** they attempt to publish an old transaction.
+This way, each party provides a way for the counterparty to claim their funds ***if and only if*** they cheat and publish an old transaction.
+
+
+### Starting With The End In Mind
+Buckle up! We're diving deep!
+
+Just as we've done earlier, let's start with the end in mind. Remember how we started our Lightning journey by generating various **basepoints** and **secrets**? Well, two of those basepoints are going to come in handy right now. Specifically, the **delayed payment basepoint** and the **revocation basepoint**. We'll use those basepoints to calculate ***new*** public keys for each commitment transaction, which are deterministically derived from the basepoints but not equal to the basepoints themselves. This is why, in the diagram below, the legend shows Alice and Bob's **delayed payment public key** and the **revocation public key** as `Ax` and `Bx`, where `x` is meant to be replaced with the number of the commitment. Remember, this is just a visual representation of the fact that the public keys will change for each commitment, but they are derived from the same basepoint. We'll learn how in just a moment!
+
+NOTE: This is different than what we did for the **payment basepoint**! When we create outputs for our conterpary, we simply lock to their **payment basepoint** to make things easier for them. This is easier for them because, as you may have guessed, if we deterministically derive new public keys for each state, that means we need to remember some sort of **state data** so that we can correctly derive the private key to spend from the public key in any given state. Since the security model of Lightning is to protect our counterpary from *us* cheating, then it makes sense to simply lock their ouputs to their **payment basepoint**, which does not change for each commitment.
 
 <p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_keys_no_delay.png" alt="revocation_keys_no_delay" width="40%" height="auto">
+  <img src="./tutorial_images/revocation_keys_primer1.png" alt="revocation_keys_primer1" width="100%" height="auto">
 </p>
 
+Now, when we advance to a new channel state, we'll use new **delayed payment public keys** and the **revocation public keys**, derived from the same basepoints. This is demonstrated in the visual below by showing `A2` for the public keys in Alice's version of the commitment transaction and `B2` for the public keys in Bob's version of the commitment transaction.
+
 <p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/AsymCommits.png" alt="AsymCommits" width="100%" height="auto">
+  <img src="./tutorial_images/revocation_keys_primer2.png" alt="revocation_keys_primer2" width="100%" height="auto">
 </p>
 
 
 ## Calculating A Revocation Public Key And Private Key
+
+So, now let's get to the question we've all been waiting for... **"how can we create revocation public keys such that they satisfy the principles below"**?
+1) Create public keys, which we'll call **revocation public keys**, that Alice or Bob can spend from if their counterparty attempts to cheat.
+2) Neither Alice nor Bob should know the private key to their own **revocation public key**.
+3) When advancing to a new channel state, Alice and Bob should be able to obtain (or, more specifically, calculate) the private key to **their counterparty's revocation public key**. 
 
 Below is a diagram showing, roughly, how Alice and Bob can exchange public and private key information in such a way that they satisfy the properties listed above (ex: neither party knows the private key to their own revocation public key).
 
