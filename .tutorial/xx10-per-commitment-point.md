@@ -197,17 +197,164 @@ To ensure that Alice and Bob can create each other's commitment transaction's lo
 
 </details>
 
+### ⚡️ Derive Public Keys
 
-Just as we've done earlier, let's start with the end in mind. Remember how we started our Lightning journey by generating various **basepoints** and **secrets**? Well, two of those basepoints are going to come in handy right now. Specifically, the **delayed payment basepoint** and the **revocation basepoint**. We'll use those basepoints to calculate ***new*** public keys for each commitment transaction, which are deterministically derived from the basepoints but not equal to the basepoints themselves. This is why, in the diagram below, the legend shows Alice and Bob's **delayed payment public key** and the **revocation public key** as `Ax` and `Bx`, where `x` is meant to be replaced with the number of the commitment. Remember, this is just a visual representation of the fact that the public keys will change for each commitment, but they are derived from the same basepoint. We'll learn how in just a moment!
+Alright, let's get our hands dirty by implementing `derive_public_key`, a function that takes a **Basepoint** and **Per Commitment Point** and returns a public key for a specific commitment transaction. In case you're wondering, the function definition doesn't specify which basepoint for a few reasons. First, we can use this function to derive a **Delayed Payment Public Key** for our counterparty, which uses *their** **Delayed Payment Basepoint** and their **Per-Commitment Point**. Additionally, as we'll see later, there are other public keys that we'll derive using different **Basepoints**!
 
-NOTE: This is different than what we did for the **payment basepoint**! When we create outputs for our conterpary, we simply lock to their **payment basepoint** to make things easier for them. This is easier for them because, as you may have guessed, if we deterministically derive new public keys for each state, that means we need to remember some sort of **state data** so that we can correctly derive the private key to spend from the public key in any given state. Since the security model of Lightning is to protect our counterpary from *us* cheating, then it makes sense to simply lock their ouputs to their **payment basepoint**, which does not change for each commitment.
+```rust
+pub fn derive_public_key(
+    basepoint: &PublicKey,
+    per_commitment_point: &PublicKey,
+    secp_ctx: &Secp256k1<All>,
+) -> PublicKey {
+    // pubkey = basepoint + SHA256(per_commitment_point || basepoint)
+    let mut engine = Sha256::engine();
+    engine.input(&per_commitment_point.serialize());
+    engine.input(&basepoint.serialize());
+    let res = Sha256::from_engine(engine);
+
+    let hashkey = PublicKey::from_secret_key(
+        &secp_ctx,
+        &SecretKey::from_slice(res.as_byte_array())
+            .expect("Hashes should always be valid keys unless SHA-256 is broken"),
+    );
+
+    basepoint.combine(&hashkey).expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+}
+```
+
+<details>
+  <summary>Step 1: Create a SHA256 Hashing Engine</summary>
+We start by creating a SHA256 hasher that we'll use to hash our key material together. The `engine()` method gives us a hasher we can feed data into incrementally.
+
+```rust
+let mut engine = Sha256::engine();
+```
+</details>
+
+<details>
+<summary>Step 2: Hash the Per-Commitment Point and Basepoint</summary>
+
+Next, we hash the concatenation of our per-commitment point and basepoint. The order matters here - per-commitment point first, then basepoint, as specified in BOLT 3!
+
+We serialize each public key to bytes using `.serialize()` which gives us the compressed 33-byte representation, then feed those bytes into our hasher with `.input()`.
+
+```rust
+engine.input(&per_commitment_point.serialize());
+engine.input(&basepoint.serialize());
+```
+</details>
+
+<details>
+<summary>Step 3: Finalize the Hash and Convert to Public Key</summary>
+
+Now we finalize the hash and convert the resulting 32 bytes into a public key. This might seem odd - we're treating a hash output as a secret key and deriving its public key - but this is exactly what the BOLT 3 specification calls for!
+  
+The hash output is guaranteed to be a valid secret key (the only way it wouldn't be is if SHA-256 itself is broken). We multiply this secret by the generator point G to get our "tweak" public key.
+
+```rust
+let res = Sha256::from_engine(engine);
+let hashkey = PublicKey::from_secret_key(
+    &secp_ctx,
+    &SecretKey::from_slice(res.as_byte_array())
+        .expect("Hashes should always be valid keys unless SHA-256 is broken"),
+);
+```
+</details>
+
+<details>
+  <summary>Step 4: Combine the Basepoint with the Hash Key</summary>
+  
+Finally, we add our basepoint to the hash key using elliptic curve point addition. The `.combine()` method performs this addition on the secp256k1 curve.
+
+This operation can only fail if the tweak is the exact inverse of the basepoint (which would result in the point at infinity). But since our tweak includes a hash of the basepoint itself, this is cryptographically impossible!
+
+```rust
+basepoint.combine(&hashkey).expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+```
+</details>
+
+## Deriving Private Keys
+Okay, so we have our public keys ready to go! But, how do we generate the private keys so that we can spend from any given commitment state? For example, the diagram below depicts a situation where Alice needs to claim her funds from the first commitment state, which we've been calling the "Refund" transaction. To do this, she needs to spend from the **Delayed Payment Public Key**, which is unique to this commitment state.
+
+To be clear, we can imagine that Alice is locking her funds to another public key for which she knows the private key. It's shown in a black color below to indicate that it's not a public key related to our Lightning wallet. It can be any other public key that Alice controls.
 
 <p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_keys_primer1.png" alt="revocation_keys_primer1" width="100%" height="auto">
+  <img src="./tutorial_images/alice_refund_claim.png" alt="alice_refund_claim" width="100%" height="auto">
 </p>
 
-Now, when we advance to a new channel state, we'll use new **delayed payment public keys** and the **revocation public keys**, derived from the same basepoints. This is demonstrated in the visual below by showing `A2` for the public keys in Alice's version of the commitment transaction and `B2` for the public keys in Bob's version of the commitment transaction.
+If you recall from earlier when we created our **Delayed Payment Public Key**, we combined the **Delayed Payment Basepoint** with the **Per-Commitment Point**. Therefore, to generate the private key to spend from the **Delayed Payment Public Key**, we'll have to combine the **Delayed Payment Secret** with the same tweak we added to our **Delayed Payment Secret** to create the **Delayed Payment Public Key**. BOLT 3 provides us with the equation to do just this! You can see it below.
 
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_keys_primer2.png" alt="revocation_keys_primer2" width="100%" height="auto">
-</p>
+```
+privkey = basepoint_secret + SHA256(per_commitment_point || basepoint)
+```
+
+#### Question: Take a look at the newly added sequence field in the "input" section of Alice's refund claim transaction. What is to_self_delay here?
+<details>
+  <summary>Answer</summary>
+
+Recall how we added a delay so that Alice had to wait `to_self_delay` (ex: 2016 blocks or ~2 weeks) before she could claim her funds from this output, if it's mined? This was to give Bob time to claim these funds first, if Alice was cheating by broadcasting this transaction *after* they had already agreed to move to a new channel state.
+
+We'll, in this example, we're assuming that Alice is playing nice and is fairly claiming these funds back. To do this, she will have to set the `sequence` field in the input, which specifies the output she's spending, to the `to_self_delay` value that was embedded in the script. If you're intersted in reading the details, you can read the OP_CHECKSEQUENCEVERIFY BIP [here](https://github.com/bitcoin/bips/blob/master/bip-0112.mediawiki). 
+
+If you're busy (or are intimidated by the BIP - they can be scary), here is the TLDR: The `sequence` field specifies a relative timelock on the input - meaning that a transaction cannot be mined until that amount of blocks (or time) has passed **since the input was mined**. OP_CHECKSEQUENCEVERIFY, when being evaluated on the stack, will check if the provided delay (`to_self_delay`, in our case) is greater than or equal to the value in the `sequence` field. By doing this, we can restrict the delayed spending path such that Alice cannot spend from that path until the relative timelock has experied. Cool, eh?
+
+</details>
+
+### ⚡️ Derive Private Keys
+
+For this exercise, we'll implement `derive_private_key`, a function that takes a `base_secret` (like our `delayed_payment_base_key`), a `per_commitment_point`, and returns the derived private key we can use to sign for that specific commitment.
+
+```rust
+pub fn derive_private_key(
+    base_secret: &SecretKey,
+    per_commitment_point: &PublicKey,
+    secp_ctx: &Secp256k1<All>,
+) -> SecretKey {
+    // privkey = base_secret + SHA256(per_commitment_point || basepoint)
+    let basepoint = PublicKey::from_secret_key(secp_ctx, base_secret);
+    let mut engine = Sha256::engine();
+    engine.input(&per_commitment_point.serialize());
+    engine.input(&basepoint.serialize());
+    let res = Sha256::from_engine(engine).to_byte_array();
+    base_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
+        .expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+}
+```
+
+<details>
+  <summary>Step 1: Derive the Basepoint Public Key</summary>
+
+First, we need to derive the public key (basepoint) from our base secret. We need this because the hash in our derivation formula includes the basepoint, not the secret!
+
+```rust
+let basepoint = PublicKey::from_secret_key(secp_ctx, base_secret);
+```
+</details>
+
+
+<details>
+  <summary>Step 2: Hash the Per-Commitment Point and Basepoint</summary>
+  
+Just like we did for public key derivation, we create a SHA256 hasher and feed it the per-commitment point and basepoint in that exact order. This hash will become our "tweak" value
+
+```rust
+let mut engine = Sha256::engine();
+engine.input(&per_commitment_point.serialize());
+engine.input(&basepoint.serialize());
+let res = Sha256::from_engine(engine).to_byte_array();
+```
+</details>
+
+<details>
+  <summary>Step 3: Add the Tweak to the Base Secret</summary>
+
+Now for the key operation! We add our hash (the tweak) to the base secret using scalar addition on the secp256k1 curve. The `.add_tweak()` method handles this securely.
+
+We need to convert our hash bytes into a `Scalar` (a number modulo the curve order) using `Scalar::from_be_bytes()`. The operation can only fail if the tweak happens to be the exact inverse of our key, but since the tweak includes a hash of the public key derived from our secret, this is cryptographically impossible.
+
+```rust
+base_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
+.expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+```
+</details>
