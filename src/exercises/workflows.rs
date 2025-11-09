@@ -76,7 +76,6 @@ pub fn build_complete_commitment_transaction(
         commitment_number,
         local_payment_basepoint,
         remote_payment_basepoint,
-        true,
     );
 
     tx

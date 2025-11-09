@@ -781,7 +781,6 @@ fn test_bolt3_obscured_commitment_number() {
         get_commitment_transaction_number_obscure_factor(
             &local_payment_basepoint,
             &remote_payment_basepoint,
-            true,
         );
 
     let actual_obscured = commitment_transaction_number_obscure_factor
