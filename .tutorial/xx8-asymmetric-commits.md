@@ -80,3 +80,97 @@ Hopefully, the following points are now clear:
 2) Signatures are exchanged such that each party can only ever broadcast **their own version** of a commitment transaction.
 
 
+## ⚡️ Generate A Signature 
+
+```rust
+impl ChannelKeyManager {
+    pub fn sign_transaction_input(
+        &self,
+        tx: &Transaction,
+        input_index: usize,
+        script: &ScriptBuf,
+        amount: u64,
+        secret_key: &SecretKey,
+    ) -> Vec<u8> {
+        let mut sighash_cache = SighashCache::new(tx);
+        let sighash = sighash_cache
+            .p2wsh_signature_hash(
+                input_index,
+                script,
+                Amount::from_sat(amount),
+                EcdsaSighashType::All,
+            )
+            .expect("Valid sighash");
+        let msg = Message::from_digest(sighash.to_byte_array());
+        let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
+        let mut sig_bytes = sig.serialize_der().to_vec();
+        sig_bytes.push(EcdsaSighashType::All as u8);
+        sig_bytes
+    }
+}
+```
+
+<details>
+<summary>Step 1: Create a Sighash Cache</summary>
+First, we create a `SighashCache` from our transaction. This cache helps efficiently compute signature hashes, especially when signing multiple inputs (it caches intermediate computations to avoid redundant work).
+
+```rust
+let mut sighash_cache = SighashCache::new(tx);
+```
+</details>
+
+<details>
+<summary>Step 2: Compute the P2WSH Signature Hash</summary>
+
+Now we calculate the sighash - the hash that we'll actually sign. For P2WSH (Pay-to-Witness-Script-Hash) inputs, we use p2wsh_signature_hash which implements BIP 143.
+
+We need to provide:
+- `input_index`: which input we're signing
+- `script`: the witness script (the actual script conditions, not its hash)
+- `amount`: the value of the output being spent (required for SegWit!)
+- `EcdsaSighashType::All`: signs all inputs and outputs (the standard for Lightning)
+
+```rust
+let sighash = sighash_cache
+.p2wsh_signature_hash(
+    input_index,
+    script,
+    Amount::from_sat(amount),
+    EcdsaSighashType::All,
+)
+.expect("Valid sighash");
+```
+</details>
+
+<details>
+<summary>Step 3: Create a Signable Message</summary>
+The sighash is just a hash (32 bytes). To sign it with secp256k1, we need to wrap it in a `Message` type that the signing function can work with.
+
+```rust
+let msg = Message::from_digest(sighash.to_byte_array());
+```
+</details>
+
+<details>
+  <summary>Step 4: Sign the Message with ECDSA</summary>
+  
+Here's where the magic happens! We use our secp256k1 context to create an ECDSA signature over the message using our secret key. This signature cryptographically proves that we possess the private key without revealing it.
+
+```rust
+let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
+```
+</details>
+
+<details>
+  <summary>Step 5: Serialize and Append Sighash Type</summary>
+  
+Finally, we need to format our signature for inclusion in the transaction. We serialize it using DER encoding (the standard Bitcoin signature format), then append the sighash type byte (0x01 for SIGHASH_ALL) to the end.
+  
+Bitcoin requires this sighash type byte to be appended to every signature to indicate what parts of the transaction are covered by the signature.
+
+```rust
+let mut sig_bytes = sig.serialize_der().to_vec();
+sig_bytes.push(EcdsaSighashType::All as u8);
+sig_bytes
+```
+</details>

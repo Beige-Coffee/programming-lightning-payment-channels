@@ -21,19 +21,14 @@ use crate::INITIAL_COMMITMENT_NUMBER;
 
 /// Exercise 24: Calculate obscure factor for commitment number
 pub fn get_commitment_transaction_number_obscure_factor(
-    broadcaster_payment_basepoint: &PublicKey,
-    countersignatory_payment_basepoint: &PublicKey,
-    outbound_from_broadcaster: bool,
+    initiator_payment_basepoint: &PublicKey,
+    receiver_payment_basepoint: &PublicKey,
 ) -> u64 {
     let mut sha = Sha256::engine();
+    
+    sha.input(&initiator_payment_basepoint.serialize());
+    sha.input(&receiver_payment_basepoint.serialize());
 
-    if outbound_from_broadcaster {
-        sha.input(&broadcaster_payment_basepoint.serialize());
-        sha.input(&countersignatory_payment_basepoint.serialize());
-    } else {
-        sha.input(&countersignatory_payment_basepoint.serialize());
-        sha.input(&broadcaster_payment_basepoint.serialize());
-    }
     let res = Sha256::from_engine(sha).to_byte_array();
 
     ((res[26] as u64) << 5 * 8)
@@ -50,15 +45,13 @@ pub fn get_commitment_transaction_number_obscure_factor(
 pub fn set_obscured_commitment_number(
     tx: &mut Transaction,
     commitment_number: u64,
-    local_payment_basepoint: &PublicKey,
-    remote_payment_basepoint: &PublicKey,
-    outbound_from_broadcaster: bool,
+    initiator_payment_basepoint: &PublicKey,
+    receiver_payment_basepoint: &PublicKey,
 ) {
     let commitment_transaction_number_obscure_factor =
         get_commitment_transaction_number_obscure_factor(
-            &local_payment_basepoint,
-            &remote_payment_basepoint,
-            outbound_from_broadcaster,
+            &initiator_payment_basepoint,
+            &receiver_payment_basepoint,
         );
 
     let obscured_commitment_transaction_number = commitment_transaction_number_obscure_factor
