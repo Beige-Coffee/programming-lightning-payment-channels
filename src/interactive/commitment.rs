@@ -35,6 +35,7 @@ pub async fn run(funding_txid: String) {
     let our_channel_keys_manager = our_node_keys_manager.derive_channel_keys(channel_index);
     let our_channel_public_keys = our_channel_keys_manager.to_public_keys();
     let local_funding_privkey = our_channel_keys_manager.funding_key;
+    let local_payment_basepoint = our_channel_public_keys.payment_basepoint;
     let local_funding_pubkey = BitcoinPublicKey::new(our_channel_public_keys.funding_pubkey);
     let first_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
 
@@ -42,7 +43,7 @@ pub async fn run(funding_txid: String) {
     let remote_node_keys_manager = new_keys_manager(remote_seed, bitcoin_network);
     let remote_channel_keys_manager = remote_node_keys_manager.derive_channel_keys(channel_index);
     let remote_channel_public_keys = remote_channel_keys_manager.to_public_keys();
-    let remote_payment_pubkey = remote_channel_public_keys.payment_basepoint;
+    let remote_payment_basepoint = remote_channel_public_keys.payment_basepoint;
     let remote_funding_privkey = remote_channel_keys_manager.funding_key;
     let remote_funding_pubkey = BitcoinPublicKey::new(remote_channel_public_keys.funding_pubkey);
 
@@ -76,12 +77,14 @@ pub async fn run(funding_txid: String) {
         funding_outpoint,
         to_local_value,
         to_remote_value,
-        &commitment_keys,
-        &remote_payment_pubkey,
+        &commitment_keys, // Pre-derived keys!
+        &local_payment_basepoint,
+        &remote_payment_basepoint,
+        commitment_number,
         to_self_delay,
         feerate_per_kw,
-        offered_htlcs,
-        received_htlcs,
+        offered_htlcs,  // HTLCs included from the start
+        received_htlcs, // HTLCs included from the start
     );
 
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);

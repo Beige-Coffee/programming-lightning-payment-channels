@@ -180,47 +180,6 @@ pub fn sort_outputs(outputs: &mut Vec<OutputWithMetadata>) {
     });
 }
 
-/// Build all outputs and sort them once
-///
-/// Simple approach:
-/// 1. Create all outputs (to_local, to_remote, all HTLCs)
-/// 2. Sort everything once at the end
-/// 3. Done!
-fn build_and_sort_all_outputs(
-    to_local_value: u64,
-    to_remote_value: u64,
-    commitment_keys: &CommitmentKeys,
-    remote_payment_basepoint: &PublicKey,
-    to_self_delay: u16,
-    fee: u64,
-    offered_htlcs: &[(u64, [u8; 32])],
-    received_htlcs: &[(u64, [u8; 32], u32)],
-) -> Vec<OutputWithMetadata> {
-    let mut outputs = Vec::new();
-
-    // Add to_local and to_remote outputs
-    outputs.extend(create_commitment_transaction_outputs(
-        to_local_value,
-        to_remote_value,
-        commitment_keys,
-        remote_payment_basepoint,
-        to_self_delay,
-        fee,
-    ));
-
-    // Add all HTLC outputs
-    outputs.extend(create_htlc_outputs(
-        commitment_keys,
-        offered_htlcs,
-        received_htlcs,
-    ));
-
-    // Sort everything once
-    sort_outputs(&mut outputs);
-
-    outputs
-}
-
 // ============================================================================
 // SECTION 9: COMMITMENT TRANSACTION CONSTRUCTION
 // ============================================================================
@@ -238,7 +197,9 @@ pub fn create_commitment_transaction(
     to_local_value: u64,
     to_remote_value: u64,
     commitment_keys: &CommitmentKeys,
+    local_payment_basepoint: &PublicKey,
     remote_payment_basepoint: &PublicKey,
+    commitment_number: u64,
     to_self_delay: u16,
     feerate_per_kw: u64,
     offered_htlcs: Vec<(u64, [u8; 32])>,
@@ -247,21 +208,35 @@ pub fn create_commitment_transaction(
     // Calculate fee based on number of HTLCs
     let num_htlcs = offered_htlcs.len() + received_htlcs.len();
     let fee = calculate_commitment_tx_fee(feerate_per_kw, num_htlcs);
+    let mut output_metadata = Vec::new();
 
-    // Build and sort ALL outputs at once (HTLCs + to_local + to_remote)
-    let all_outputs = build_and_sort_all_outputs(
+    let channel_outputs = create_commitment_transaction_outputs(
         to_local_value,
         to_remote_value,
         commitment_keys,
         remote_payment_basepoint,
         to_self_delay,
         fee,
+    );
+
+    let htlc_outputs = create_htlc_outputs(
+        &commitment_keys,
         &offered_htlcs,
         &received_htlcs,
     );
 
+
+    // Add to_local and to_remote outputs
+    output_metadata.extend(channel_outputs);
+
+    // Add all HTLC outputs
+    output_metadata.extend(htlc_outputs);
+    
+    // Sort everything once
+    sort_outputs(&mut output_metadata);
+
     // Convert to TxOut
-    let outputs: Vec<TxOut> = all_outputs
+    let outputs: Vec<TxOut> = output_metadata
         .iter()
         .map(|meta| TxOut {
             value: Amount::from_sat(meta.value),
@@ -269,7 +244,7 @@ pub fn create_commitment_transaction(
         })
         .collect();
 
-    Transaction {
+    let mut tx = Transaction {
         version: Version::TWO,
         lock_time: LockTime::ZERO,
         input: vec![TxIn {
@@ -279,7 +254,17 @@ pub fn create_commitment_transaction(
             witness: Witness::new(),
         }],
         output: outputs,
-    }
+    };
+
+    set_obscured_commitment_number(
+        &mut tx,
+        commitment_number,
+        local_payment_basepoint,
+        remote_payment_basepoint
+    );
+
+    tx
+
 }
 
 // ============================================================================

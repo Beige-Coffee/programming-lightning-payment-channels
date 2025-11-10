@@ -58,24 +58,18 @@ pub fn build_complete_commitment_transaction(
 
     // Create complete commitment tx with ALL outputs at once (LDK-style)
     // This is more efficient than creating the base tx and then adding HTLCs
-    let mut tx = create_commitment_transaction(
+    let tx = create_commitment_transaction(
         funding_outpoint,
         to_local_value,
         to_remote_value,
         commitment_keys, // Pre-derived keys!
+        local_payment_basepoint,
         remote_payment_basepoint,
+        commitment_number,
         to_self_delay,
         feerate_per_kw,
         offered_trimmed,  // HTLCs included from the start
         received_trimmed, // HTLCs included from the start
-    );
-
-    // Set obscured commitment number
-    set_obscured_commitment_number(
-        &mut tx,
-        commitment_number,
-        local_payment_basepoint,
-        remote_payment_basepoint,
     );
 
     tx
