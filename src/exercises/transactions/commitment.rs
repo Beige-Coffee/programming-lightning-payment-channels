@@ -10,7 +10,7 @@ use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use crate::scripts::{create_offered_htlc_script, create_received_htlc_script};
 use crate::scripts::{create_to_local_script, create_to_remote_script};
 use crate::transactions::fees::calculate_commitment_tx_fee;
-use crate::types::{CommitmentKeys, OutputWithMetadata, HTLCOutput};
+use crate::types::{ChannelKeyManager, CommitmentKeys, OutputWithMetadata, HTLCOutput};
 use crate::INITIAL_COMMITMENT_NUMBER;
 
 // ============================================================================
@@ -294,4 +294,38 @@ pub fn create_commitment_witness(
         &remote_funding_signature[..],
         funding_script.as_bytes(),
     ])
+}
+
+pub fn sign_holder_commitmentment(
+    keys_manager: ChannelKeyManager,
+    tx: Transaction,
+    input_index: usize,
+    funding_script: &ScriptBuf,
+    funding_amount: u64,
+    remote_funding_signature: Vec<u8>,
+) -> Transaction {
+
+    let local_funding_privkey = keys_manager.funding_key;
+
+    let local_funding_signature = keys_manager.sign_transaction_input(
+        &tx,
+        input_index,
+        &funding_script,
+        funding_amount,
+        &local_funding_privkey,
+    );
+
+    // Build witness stack: [0, sig1, sig2, witnessScript]
+    let witness = Witness::from_slice(&[
+        &[][..], // OP_0 for CHECKMULTISIG bug
+        &local_funding_signature[..],
+        &remote_funding_signature[..],
+        funding_script.as_bytes(),
+    ]);
+
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    signed_tx
+
 }

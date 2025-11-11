@@ -2,8 +2,7 @@ use crate::internal::bitcoind_client::{get_bitcoind_client, BitcoindClient};
 use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
-use crate::transactions::commitment::{create_commitment_witness};
-use crate::transactions::commitment::create_commitment_transaction;
+use crate::transactions::commitment::{create_commitment_transaction, sign_holder_commitmentment};
 use crate::types::{CommitmentKeys, KeyFamily, HTLCOutput};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::locktime::absolute::LockTime;
@@ -102,27 +101,13 @@ pub async fn run(funding_txid: String) {
         &remote_funding_privkey,
     );
 
-    let local_funding_signature = our_channel_keys_manager.sign_transaction_input(
-        &tx,
+    let signed_tx = sign_holder_commitmentment(
+        our_channel_keys_manager,
+        tx,
         0,
         &funding_script,
         funding_amount,
-        &local_funding_privkey,
-    );
-
-    // Step 3: Sign the transaction with OUR key and create witness
-    // Note: We only pass our local key, not the remote key
-    let witness = create_commitment_witness(
-        &tx,
-        &funding_script,
-        funding_amount,
-        local_funding_signature,
-        remote_funding_signature,
-    );
-
-    // Step 4: Attach the witness to the transaction
-    let mut signed_tx = tx;
-    signed_tx.input[0].witness = witness;
+        remote_funding_signature);
 
     println!("\n✓ Commitment Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
