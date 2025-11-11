@@ -67,6 +67,7 @@ pub fn build_complete_commitment_transaction(
         remote_payment_basepoint,
         commitment_number,
         to_self_delay,
+        dust_limit_satoshis,
         feerate_per_kw,
         offered_trimmed,  // HTLCs included from the start
         received_trimmed, // HTLCs included from the start

@@ -31,6 +31,7 @@ pub async fn run(funding_txid: String) {
     let channel_index = 0;
     let secp_ctx = Secp256k1::new();
     let commitment_number = 2;
+    let dust_limit_sats = 355;
 
     // Get our keys
     let our_node_keys_manager = new_keys_manager(our_seed, bitcoin_network);
@@ -84,6 +85,7 @@ pub async fn run(funding_txid: String) {
         &remote_payment_basepoint,
         commitment_number,
         to_self_delay,
+        dust_limit_sats,
         feerate_per_kw,
         offered_htlcs,  // HTLCs included from the start
         received_htlcs, // HTLCs included from the start

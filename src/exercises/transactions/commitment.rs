@@ -25,7 +25,7 @@ pub fn get_commitment_transaction_number_obscure_factor(
     receiver_payment_basepoint: &PublicKey,
 ) -> u64 {
     let mut sha = Sha256::engine();
-    
+
     sha.input(&initiator_payment_basepoint.serialize());
     sha.input(&receiver_payment_basepoint.serialize());
 
@@ -91,12 +91,13 @@ fn create_commitment_transaction_outputs(
     commitment_keys: &CommitmentKeys,
     remote_payment_basepoint: &PublicKey,
     to_self_delay: u16,
+    dust_limit_satoshis: u64,
     fee: u64,
 ) -> Vec<OutputWithMetadata> {
     let mut outputs = Vec::new();
 
     // Create to_remote output (goes to counterparty, immediately spendable)
-    if to_remote_value >= fee / 2 {
+    if to_remote_value >= dust_limit_satoshis {
         let to_remote_script = create_to_remote_script(remote_payment_basepoint);
         outputs.push(OutputWithMetadata {
             value: to_remote_value,
@@ -106,7 +107,7 @@ fn create_commitment_transaction_outputs(
     }
 
     // Create to_local output (goes to us, revocable with delay)
-    if to_local_value >= fee / 2 {
+    if to_local_value >= dust_limit_satoshis {
         let to_local_script = create_to_local_script(
             &commitment_keys.revocation_key,
             &commitment_keys.local_delayed_payment_key,
@@ -201,6 +202,7 @@ pub fn create_commitment_transaction(
     remote_payment_basepoint: &PublicKey,
     commitment_number: u64,
     to_self_delay: u16,
+    dust_limit_satoshis: u64,
     feerate_per_kw: u64,
     offered_htlcs: Vec<(u64, [u8; 32])>,
     received_htlcs: Vec<(u64, [u8; 32], u32)>,
@@ -216,22 +218,18 @@ pub fn create_commitment_transaction(
         commitment_keys,
         remote_payment_basepoint,
         to_self_delay,
+        dust_limit_satoshis,
         fee,
     );
 
-    let htlc_outputs = create_htlc_outputs(
-        &commitment_keys,
-        &offered_htlcs,
-        &received_htlcs,
-    );
-
+    let htlc_outputs = create_htlc_outputs(&commitment_keys, &offered_htlcs, &received_htlcs);
 
     // Add to_local and to_remote outputs
     output_metadata.extend(channel_outputs);
 
     // Add all HTLC outputs
     output_metadata.extend(htlc_outputs);
-    
+
     // Sort everything once
     sort_outputs(&mut output_metadata);
 
@@ -260,11 +258,10 @@ pub fn create_commitment_transaction(
         &mut tx,
         commitment_number,
         local_payment_basepoint,
-        remote_payment_basepoint
+        remote_payment_basepoint,
     );
 
     tx
-
 }
 
 // ============================================================================
@@ -272,16 +269,16 @@ pub fn create_commitment_transaction(
 // ============================================================================
 
 /// Exercise 31: Create witness for commitment transaction
-/// 
+///
 /// In a real Lightning implementation:
 /// 1. You create the unsigned commitment transaction
 /// 2. You send it to your counterparty to get their signature
 /// 3. You sign it with your local funding key (via the signer)
 /// 4. You combine both signatures to create the witness (this function)
-/// 
+///
 /// This function takes the signer, transaction, and remote signature to construct
 /// the complete witness for the commitment transaction's funding input.
-/// 
+///
 /// Witness stack: [0, sig1, sig2, witnessScript]
 pub fn create_commitment_witness(
     tx: &Transaction,
@@ -290,10 +287,9 @@ pub fn create_commitment_witness(
     local_funding_signature: Vec<u8>,
     remote_funding_signature: Vec<u8>,
 ) -> Witness {
-    
     // Build witness stack: [0, sig1, sig2, witnessScript]
     Witness::from_slice(&[
-        &[][..],                      // OP_0 for CHECKMULTISIG bug
+        &[][..], // OP_0 for CHECKMULTISIG bug
         &local_funding_signature[..],
         &remote_funding_signature[..],
         funding_script.as_bytes(),
