@@ -6,7 +6,7 @@ use crate::transactions::commitment::{
     create_commitment_transaction, set_obscured_commitment_number,
 };
 use crate::transactions::fees::is_htlc_dust;
-use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HtlcDirection};
+use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HtlcDirection, HTLCOutput};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
 
@@ -32,8 +32,8 @@ pub fn build_complete_commitment_transaction(
     local_payment_basepoint: &PublicKey,
     to_local_value_msat: u64,
     to_remote_value_msat: u64,
-    offered_htlcs: Vec<(u64, [u8; 32])>,
-    received_htlcs: Vec<(u64, [u8; 32], u32)>,
+    offered_htlcs: &[HTLCOutput],
+    received_htlcs: &[HTLCOutput],
     commitment_number: u64,
     to_self_delay: u16,
     dust_limit_satoshis: u64,
@@ -46,13 +46,13 @@ pub fn build_complete_commitment_transaction(
     // Trim dust HTLCs
     let offered_trimmed: Vec<_> = offered_htlcs
         .iter()
-        .filter(|(amt, _)| !is_htlc_dust(*amt, dust_limit_satoshis, feerate_per_kw))
+        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw))
         .cloned()
         .collect();
 
     let received_trimmed: Vec<_> = received_htlcs
         .iter()
-        .filter(|(amt, _, _)| !is_htlc_dust(*amt, dust_limit_satoshis, feerate_per_kw))
+        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw))
         .cloned()
         .collect();
 
@@ -69,8 +69,8 @@ pub fn build_complete_commitment_transaction(
         to_self_delay,
         dust_limit_satoshis,
         feerate_per_kw,
-        offered_trimmed,  // HTLCs included from the start
-        received_trimmed, // HTLCs included from the start
+        &offered_trimmed,  // HTLCs included from the start
+        &received_trimmed, // HTLCs included from the start
     );
 
     tx
@@ -93,8 +93,8 @@ pub fn build_commitment_from_channel_keys(
     local_htlc_basepoint: &PublicKey,
     to_local_value_msat: u64,
     to_remote_value_msat: u64,
-    offered_htlcs: Vec<(u64, [u8; 32])>,
-    received_htlcs: Vec<(u64, [u8; 32], u32)>,
+    offered_htlcs: &[HTLCOutput],
+    received_htlcs: &[HTLCOutput],
     commitment_number: u64,
     to_self_delay: u16,
     dust_limit_satoshis: u64,
@@ -198,8 +198,8 @@ pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transacti
         &test_vector.local_payment_basepoint,
         test_vector.to_local_msat,
         test_vector.to_remote_msat,
-        vec![], // No offered HTLCs
-        vec![], // No received HTLCs
+        &vec![], // No offered HTLCs
+        &vec![], // No received HTLCs
         test_vector.commitment_number,
         test_vector.local_delay,
         test_vector.local_dust_limit_satoshi,
@@ -259,16 +259,24 @@ pub fn build_bolt3_commitment_with_htlcs(
     );
 
     // Separate HTLCs by direction
-    let mut offered = Vec::new();
-    let mut received = Vec::new();
+    let mut offered_htlcs: Vec<HTLCOutput> = Vec::new();
+    let mut received_htlcs: Vec<HTLCOutput> = Vec::new();
 
     for htlc in htlcs {
         match htlc.direction {
             HtlcDirection::Offered => {
-                offered.push((htlc.amount_msat / 1000, htlc.payment_hash));
+                offered_htlcs.push(HTLCOutput {
+                        amount_sat: htlc.amount_msat / 1000,
+                        payment_hash: htlc.payment_hash,
+                        cltv_expiry: htlc.cltv_expiry,
+                    });
             }
             HtlcDirection::Received => {
-                received.push((htlc.amount_msat / 1000, htlc.payment_hash, htlc.cltv_expiry));
+                received_htlcs.push(HTLCOutput {
+                    amount_sat: htlc.amount_msat / 1000,
+                    payment_hash: htlc.payment_hash,
+                    cltv_expiry: htlc.cltv_expiry,
+                });
             }
         }
     }
@@ -280,8 +288,8 @@ pub fn build_bolt3_commitment_with_htlcs(
         &test_vector.local_payment_basepoint,
         test_vector.to_local_msat,
         test_vector.to_remote_msat,
-        offered,
-        received,
+        &offered_htlcs,
+        &received_htlcs,
         test_vector.commitment_number,
         test_vector.local_delay,
         test_vector.local_dust_limit_satoshi,

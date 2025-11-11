@@ -88,6 +88,16 @@ pub struct OutputWithMetadata {
     pub cltv_expiry: Option<u32>,
 }
 
+#[derive(Debug, Clone)]
+pub struct HTLCOutput {
+    /// Amount in satoshis
+    pub amount_sat: u64,
+    /// Payment hash for this HTLC
+    pub payment_hash: [u8; 32],
+    /// CLTV expiry height
+    pub cltv_expiry: u32,
+}
+
 // ============================================================================
 // TEST VECTOR STRUCTURES
 // ============================================================================

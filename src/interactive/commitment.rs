@@ -4,7 +4,7 @@ use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
 use crate::transactions::commitment::{create_commitment_witness};
 use crate::transactions::commitment::create_commitment_transaction;
-use crate::types::{CommitmentKeys, KeyFamily};
+use crate::types::{CommitmentKeys, KeyFamily, HTLCOutput};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::locktime::absolute::LockTime;
 use bitcoin::script::ScriptBuf;
@@ -68,8 +68,8 @@ pub async fn run(funding_txid: String) {
     let to_remote_value = 1_000_500;
     let to_self_delay = 144;
     let feerate_per_kw = 15000;
-    let offered_htlcs: Vec<(u64, [u8; 32])> = Vec::new();
-    let received_htlcs: Vec<(u64, [u8; 32], u32)> = Vec::new();
+    let offered_htlcs: Vec<HTLCOutput> = Vec::new();
+    let received_htlcs: Vec<HTLCOutput> = Vec::new();
 
 
 
@@ -85,8 +85,8 @@ pub async fn run(funding_txid: String) {
         to_self_delay,
         dust_limit_sats,
         feerate_per_kw,
-        offered_htlcs,  // HTLCs included from the start
-        received_htlcs, // HTLCs included from the start
+        &offered_htlcs,  // HTLCs included from the start
+        &received_htlcs, // HTLCs included from the start
     );
 
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);

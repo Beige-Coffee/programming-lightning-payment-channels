@@ -10,7 +10,7 @@ use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use crate::scripts::{create_offered_htlc_script, create_received_htlc_script};
 use crate::scripts::{create_to_local_script, create_to_remote_script};
 use crate::transactions::fees::calculate_commitment_tx_fee;
-use crate::types::{CommitmentKeys, OutputWithMetadata};
+use crate::types::{CommitmentKeys, OutputWithMetadata, HTLCOutput};
 use crate::INITIAL_COMMITMENT_NUMBER;
 
 // ============================================================================
@@ -130,40 +130,40 @@ fn create_commitment_transaction_outputs(
 /// Note: This does NOT sort outputs - sorting is handled by the transaction builder
 fn create_htlc_outputs(
     commitment_keys: &CommitmentKeys,
-    offered_htlcs: &[(u64, [u8; 32])],
-    received_htlcs: &[(u64, [u8; 32], u32)],
+    offered_htlcs: &[HTLCOutput],
+    received_htlcs: &[HTLCOutput],
 ) -> Vec<OutputWithMetadata> {
     let mut outputs = Vec::new();
 
     // Create offered HTLC outputs (we offered, they can claim with preimage)
-    for (amount, payment_hash) in offered_htlcs {
+    for htlc in offered_htlcs {
         let script = create_offered_htlc_script(
             &commitment_keys.revocation_key,
             &commitment_keys.local_htlc_key,
             &commitment_keys.remote_htlc_key,
-            payment_hash,
+            &htlc.payment_hash,
         );
         outputs.push(OutputWithMetadata {
-            value: *amount,
+            value: htlc.amount_sat,
             script: script.to_p2wsh(),
             cltv_expiry: None,
         });
     }
 
     // Create received HTLC outputs (they offered, we can claim with preimage)
-    for (amount, payment_hash, cltv_expiry) in received_htlcs {
+    for htlc in received_htlcs {
         let script = create_received_htlc_script(
             &commitment_keys.revocation_key,
             &commitment_keys.local_htlc_key,
             &commitment_keys.remote_htlc_key,
-            payment_hash,
-            *cltv_expiry,
+            &htlc.payment_hash,
+            htlc.cltv_expiry,
         );
 
         outputs.push(OutputWithMetadata {
-            value: *amount,
+            value: htlc.amount_sat,
             script: script.to_p2wsh(),
-            cltv_expiry: Some(*cltv_expiry),
+            cltv_expiry: Some(htlc.cltv_expiry),
         });
     }
 
@@ -204,8 +204,8 @@ pub fn create_commitment_transaction(
     to_self_delay: u16,
     dust_limit_satoshis: u64,
     feerate_per_kw: u64,
-    offered_htlcs: Vec<(u64, [u8; 32])>,
-    received_htlcs: Vec<(u64, [u8; 32], u32)>,
+    offered_htlcs: &[HTLCOutput],
+    received_htlcs: &[HTLCOutput],
 ) -> Transaction {
     // Calculate fee based on number of HTLCs
     let num_htlcs = offered_htlcs.len() + received_htlcs.len();
