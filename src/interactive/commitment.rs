@@ -63,8 +63,8 @@ pub async fn run(funding_txid: String) {
     let funding_outpoint = get_outpoint(txid.to_string(), txid_index);
 
     let funding_amount = 5_000_000;
-    let to_local_value = 3_998_500;
-    let to_remote_value = 1_000_500;
+    let to_local_value = 4_998_500;
+    let to_remote_value = 500;
     let to_self_delay = 144;
     let feerate_per_kw = 15000;
     let offered_htlcs: Vec<HTLCOutput> = Vec::new();
@@ -95,7 +95,7 @@ pub async fn run(funding_txid: String) {
     // creating their signature ourselves (but in reality we wouldn't have their key!)
     let remote_funding_signature = remote_channel_keys_manager.sign_transaction_input(
         &tx,
-        0,
+        txid_index,
         &funding_script,
         funding_amount,
         &remote_funding_privkey,
@@ -104,7 +104,7 @@ pub async fn run(funding_txid: String) {
     let signed_tx = sign_holder_commitmentment(
         our_channel_keys_manager,
         tx,
-        0,
+        txid_index,
         &funding_script,
         funding_amount,
         remote_funding_signature);
