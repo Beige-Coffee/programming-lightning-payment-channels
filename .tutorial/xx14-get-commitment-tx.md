@@ -1,6 +1,6 @@
 # Get Our First Commitment (Refund) Transaction
 
-If you're reading this... congrats! You've made it to a **really** important checkpoint. We're going to use all of the code we've build thus far to generate our first commitment transaction. Since we're playing the part of Alice, this will be our "refund" transaction with will send our funds back to us if Bob goes offline.
+If you're reading this... you're approaching a **really** important checkpoint. We're going to use all of the code we've build thus far to generate our first commitment transaction. Since we're playing the part of Alice, this will be our "refund" transaction with will send our funds back to us if Bob goes offline.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/alice_refund_commit.png" alt="alice_refund_commit" width="60%" height="auto">
@@ -98,6 +98,21 @@ You should get an output like the below. See if you can map this back to the ima
     }
   ]
 }
+```
+
+### Weight & (Virtual) Size
+Let's start, going from top to bottom. The first few fields (txid, hash, version) are more self-explanatory, so we'll focus on the size and weight!
+
+The **size** is the number of bytes our transaction contains. However, after the SegWit upgrade, which provided a discount for data placed in the witness, the concept of a **virtual size** was introduced.
+
+If you were to multiply each part of the transactiond data's size by it's associated multiplier, you'd get the transaction's **weight units**. Notice here how our transaction has 721 weight units - right in between the range of 720 - 724!
+
+If we divide the **weight units** by 4, we get the **virtual size**. The total fees we would pay to broadcast this transaction would be the `sats/vbyte * vsize`.
+
+```
+"size": 346,
+"vsize": 181,
+"weight": 721,
 ```
 
 ### Locktime
