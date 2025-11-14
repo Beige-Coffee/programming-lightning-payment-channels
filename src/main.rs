@@ -82,6 +82,11 @@ enum Commands {
         #[arg(short = 't', long, help = "Commitment Tx ID")]
         commitment_txid: String,
     },
+    SimpleHtlc,
+    SimpleHtlcClaim {
+        #[arg(short = 't', long, help = "Simple HTLC Tx ID")]
+        simple_htlc_txid: String,
+    },
     /// Calculate SHA256 hash of hex input
     Sha256 {
         #[arg(short = 'd', long, help = "Input string to hash (hex)")]
@@ -117,6 +122,12 @@ async fn main() {
         },
         Commands::HtlcTimeout { commitment_txid } => {
             interactive::htlc_timeout::run(commitment_txid.clone()).await;
+        },
+        Commands::SimpleHtlc => {
+            interactive::simple_htlc::run().await;
+        },
+        Commands::SimpleHtlcClaim { simple_htlc_txid } => {
+            interactive::simple_htlc_claim::run(simple_htlc_txid.clone()).await;
         },
         Commands::Sha256 { input_string } => {
             let mut hasher = Sha256::new();
