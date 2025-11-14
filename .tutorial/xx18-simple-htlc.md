@@ -218,3 +218,35 @@ So, let's do a quick recap of the above exercise. We started by examining an HTL
 ### The Key Takeaway ❗❗ 
 
 While it was indeed fun to dig into the weeds, there is one key takeaway from this exercise that will be important for routing payments on Lightning! That takeaway is that, to claim the HTLC, Bob will include the **preimage** within the witness. Therefore, it will be visible **on-chain**! We'll circle back to this as we dive deeper into how HTLCs work in Lightning.
+
+
+## Bonus (Submarine Swaps)
+
+The above architecture is actually very close to how **Submarine Swaps** work on Lightning! This topic is a little more advanced and requires a basic understanding of how Lightning and HTLCs work. If you have that, feel free to click below and dig in. If not, make a note to come back after we finish reviewing HTLCs!
+
+
+<details>
+  <summary>Click to learn how Submarine Swaps work</summary>
+
+Submarine Swaps are a way to atomically swap bitcoin between off-chain and on-chain without any counterparty risk.
+
+For example, imagine Alice's channel balance is almost exhausted and she only has 20,000 sats on her side of the channel. However, Alice does have plenty of Bitcoin **on-chain**, and she wants to use that to get **inbound liquidity** from Bob.
+
+One option is that Alice can send Bob **on-chain** Bitcoin and ask him to refund her by sending her the same amount (or maybe slightly less, since Bob is providing her a service) over Lightning. If Alice and Bob trust each other, then they could do this, but we don't like trust!
+
+Another option that is trustless is that Alice and Bob do the following:
+1) Alice and Bob first agree to perform a Submarine Swap. In other words, Alice agrees to pay Bob 405,000 bitcoin **on-chain** and, in exchange, Bob will send Alice 400,000 sats over Lightning. Bob sends Alice a public key that she can use in the **on-chain** HTLC. Alice then generates the **preimage** and **preimage hash**.
+2) Alice creates an **on-chain** HTLC that locks 405,000 sats to the following spending paths:
+   - If Bob provides the **preimage** to the **preimage hash** and a signature to his public key, then he can claim the bitcoin.
+   - If block height **200** is reached, then Alice can claim her funds back by signing with her signature.
+3) Alice will then create a **Lightning invoice** for 400,000 sats. Crucially, **she will use the same preimage** that she used in the on-chain HTLC. Therefore, if Bob pays the off-chain Lightning invoice, he is guarenteed to receive the **preimage**, which is the same preimage for the on-chain transaction.
+  
+  
+As long as Bob has sufficient time to claim the on-chain transaction, then this operation allows Alice to trustlessly receive funds **off-chain** (in Lightning) in exchange for sending funds **on-chain**. This is a form of an **atomic swap**. It's called "atomic" because it will either fully succeed or fully fail. In other words, if Bob pays the off-chain Lightning invoice and obtains the preimage, then it's guarenteed that he will be able to claim the on-chain funds as well. 
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/submarine_swaps.png" alt="submarine_swaps" width="100%" height="auto">
+</p>
+
+
+</details>
