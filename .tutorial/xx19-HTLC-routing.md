@@ -102,7 +102,7 @@ will send an [`update_add_htlc` message](https://github.com/lightning/bolts/blob
 - `amount_msat`: This is the amount we wish to add an HTLC for.
 - `payment_hash`: This is the preimage hash that will be included in the HTLC bitcoin script.
 - `cltv_expiry`: This is the block height for which the HTLC expires.
-- `onion_routing_packet`: The onion routing packet contains specific directions that must be passed along to each node in the payment path. Since it's encrypted, ***only the recipient will be able to read the onion packet intended for them**.
+- `onion_routing_packet`: The onion routing packet contains specific directions that must be passed along to each node in the payment path. Since it's encrypted, **only the recipient will be able to read the onion packet intended for them**.
   - When Bob receives the onion packet from Alice in the `update_add_htlc` message, he will decrypt the portion intended for him, which informs him *where* to forward the payment to, how much to send, and what the expiry should be.
   - By the time Dianne receives the `update_add_htlc` message, it will have a final onion that is intended for her. To prove this onion was created by Alice and mitigate "probing attacks", Alice will embed the **Payment Secret** in the final onion. If you have good attention to detail, you may have noticed the **Payment Secret** was added to the invoice at the top of the diagram! This secret is a random 256-bit value that is provided in the invoice that Alice receives. Since Alice is the only one who sees the invoice (none of the hops in the payment path do), then the only way the **Payment Secret** can be embeded in the onion is if Alice put it there. Since the onion will also include the payment amount and expiry, this allows Dianne to verify that the HTLC that Bob is sending is indeed what Alice asked him to send!
     - By embedding the **Payment Secret** in the onion, Alice prevents Bob from performing a form of a probing attack whereby he attempts to send a smaller payment to see if Dianne will accept it. The reason this *may* work (if there was no such that as a **Payment Secret**) is that it's possible for Dianne to create an invoice that does not include an amount. For example, Alice could ask Dianne for an invoice without an amount if Alice wants to tip Dianne and determine the amount herself. If this happened, then Dianne wouldn't know how much the tip was for *until she received the HTLC from Bob*, so she would have no way of knowing that Bob altered the amount. Therefore, Bob would be able to sneak extra fees without Alice or Dianne knowing.
@@ -137,3 +137,30 @@ As we saw earlier, to claim the HTLC on-chain, Dianne will have to reveal the pr
 If Dianne does close the channel and claim the funds on-chain at **block height 180**, Bob still has until **block height 200** before Alice timeout his HTLC with her. Therefore, Bob can simply find the preimage on-chain and send it to Alice via an `update_fulfill_htlc` message, allowing him to unwind his HTLC with Alice and keep their payment channel operating smoothly.
 
 </details>
+
+### Failing HTLCs
+
+Now that we've seen the ugly way to fail an HTLC (claiming it on-chain), let's look at the nice way to fail an HTLC.
+
+Instead of failing an HTLC by claiming it on-chain, which would defeat the entire purpose of Lightning, peers will send either an `update_fail_htlc` or `update_fail_malformed_htlc` message to the counterparty that **sent** them the HTLC. These messages serve similar purposes - to inform the sender why the HTLC failed - but they have one very important difference.
+
+### Update Fail HTLC
+
+`update_fail_htlc` messages will contain an encrypted `reason`, which only the original **sender** can read. In the diagram below, you can see a variety of reasons that one might use to signal why an HTLC has failed. They are categorized into the following four buckets:
+- **BAD ONION**: Something about the onion was invalid. For instance, it had the wrong version number or the HMAC did not verify.
+- **PERM**: There was a permanent failure. For instance, the node does not support a required feature for this payment. As you can see from the diagram, some reasons fall within multiple categories, such as an invalid onion version. If the sender receives a permanent error, then they will remove the erroring node from the payment route if they attempt to send it again.
+- **NODE**: 
+- **UPDATE**: There was an error with the payment, such as having an insufficient fee, HTLC amount that is considered to small to be routed (node's can specify their minimum HTLC threshold), or having an incorrect CLTV expiry.
+
+When reading the above, you may have been wondering how the sender knows where the error originated. That would be a great question, and we'll dig into it in great detail later in the Programming Lightning course. In the meantime, the brief answer is that, in Lightning, the sender will create a **shared secret** with each hop in the payment route. This secret is used to encrypt the onion at each step **such that only the intended recipient can decrypt it using their shared secret**.
+
+When the sender recieves an error message, they can try to decrypt it using the shared secrets for each hop in the route. When one of the shared secrets works (and verifies the HMAC), then the sender will both be able to read the error and know who sent it.
+
+### Update Fail Malformed HTLC
+
+The `update_fail_malformed_htlc` message is similar to the `update_fail_htlc` message in that it is meant to signal an error in the payment route. However, this error message is restricted to failure reasons that fall within the **BADONION** category, meaning that the onion was corrupted along the path and is not readable.
+
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/update_fail_htlc.png" alt="update_fail_htlc" width="100%" height="auto">
+</p>
