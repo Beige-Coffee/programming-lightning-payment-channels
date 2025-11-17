@@ -144,7 +144,7 @@ Now that we've seen the ugly way to fail an HTLC (claiming it on-chain), let's l
 
 Instead of failing an HTLC by claiming it on-chain, which would defeat the entire purpose of Lightning, peers will send either an `update_fail_htlc` or `update_fail_malformed_htlc` message to the counterparty that **sent** them the HTLC. These messages serve similar purposes - to inform the sender why the HTLC failed - but they have one very important difference.
 
-### Update Fail HTLC
+#### Update Fail HTLC
 
 `update_fail_htlc` messages will contain an encrypted `reason`, which only the original **sender** can read. In the diagram below, you can see a variety of reasons that one might use to signal why an HTLC has failed. They are categorized into the following four buckets:
 - **BAD ONION**: Something about the onion was invalid. For instance, it had the wrong version number or the HMAC did not verify.
@@ -156,7 +156,7 @@ When reading the above, you may have been wondering how the sender knows where t
 
 When the sender recieves an error message, they can try to decrypt it using the shared secrets for each hop in the route. When one of the shared secrets works (and verifies the HMAC), then the sender will both be able to read the error and know who sent it.
 
-### Update Fail Malformed HTLC
+#### Update Fail Malformed HTLC
 
 The `update_fail_malformed_htlc` message is similar to the `update_fail_htlc` message in that it is meant to signal an error in the payment route. However, this error message is restricted to failure reasons that fall within the **BADONION** category, meaning that the onion was corrupted along the path and is not readable.
 
