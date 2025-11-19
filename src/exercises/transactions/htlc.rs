@@ -6,7 +6,7 @@ use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 
 use crate::keys::derive_revocation_public_key;
 use crate::scripts::create_to_local_script;
-use crate::transactions::fees::calculate_htlc_tx_fee;
+use crate::transactions::fees::{calculate_htlc_success_tx_fee, calculate_htlc_timeout_tx_fee};
 use crate::types::CommitmentKeys;
 
 // ============================================================================
@@ -25,7 +25,7 @@ pub fn create_htlc_success_transaction(
     to_self_delay: u16,
     feerate_per_kw: u64,
 ) -> Transaction {
-    let fee = calculate_htlc_tx_fee(feerate_per_kw);
+    let fee = calculate_htlc_success_tx_fee(feerate_per_kw);
     let output_amount = htlc_amount.saturating_sub(fee);
 
     let secp = Secp256k1::new();
@@ -66,7 +66,7 @@ pub fn create_htlc_timeout_transaction(
     to_self_delay: u16,
     feerate_per_kw: u64,
 ) -> Transaction {
-    let fee = calculate_htlc_tx_fee(feerate_per_kw);
+    let fee = calculate_htlc_timeout_tx_fee(feerate_per_kw);
     let output_amount = htlc_amount.saturating_sub(fee);
 
     let secp = Secp256k1::new();
@@ -78,19 +78,23 @@ pub fn create_htlc_timeout_transaction(
         to_self_delay,
     );
 
+    let tx_in = TxIn {
+        previous_output: htlc_outpoint,
+        script_sig: ScriptBuf::new(),
+        sequence: Sequence::ZERO,
+        witness: Witness::new(),
+    };
+
+    let tx_out = TxOut {
+        value: Amount::from_sat(output_amount),
+        script_pubkey: to_local_script.to_p2wsh(),
+    };
+
     Transaction {
-        version: Version::TWO,
-        lock_time: LockTime::from_consensus(cltv_expiry),
-        input: vec![TxIn {
-            previous_output: htlc_outpoint,
-            script_sig: ScriptBuf::new(),
-            sequence: Sequence::ZERO,
-            witness: Witness::new(),
-        }],
-        output: vec![TxOut {
-            value: Amount::from_sat(output_amount),
-            script_pubkey: to_local_script.to_p2wsh(),
-        }],
+    version: Version::TWO,
+    lock_time: LockTime::from_consensus(cltv_expiry),
+    input: vec![tx_in],
+    output: vec![tx_out],
     }
 }
 

@@ -6,7 +6,9 @@ use crate::transactions::commitment::{
     create_commitment_transaction, set_obscured_commitment_number,
 };
 use crate::transactions::fees::is_htlc_dust;
-use crate::types::{Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HtlcDirection, HTLCOutput};
+use crate::types::{
+    Bolt3Htlc, Bolt3TestVector, ChannelKeyManager, CommitmentKeys, HTLCOutput, HtlcDirection,
+};
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
 
@@ -46,13 +48,13 @@ pub fn build_complete_commitment_transaction(
     // Trim dust HTLCs
     let offered_trimmed: Vec<_> = offered_htlcs
         .iter()
-        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw))
+        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw, true))
         .cloned()
         .collect();
 
     let received_trimmed: Vec<_> = received_htlcs
         .iter()
-        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw))
+        .filter(|htlc| !is_htlc_dust(htlc.amount_sat, dust_limit_satoshis, feerate_per_kw, false))
         .cloned()
         .collect();
 
@@ -266,10 +268,10 @@ pub fn build_bolt3_commitment_with_htlcs(
         match htlc.direction {
             HtlcDirection::Offered => {
                 offered_htlcs.push(HTLCOutput {
-                        amount_sat: htlc.amount_msat / 1000,
-                        payment_hash: htlc.payment_hash,
-                        cltv_expiry: htlc.cltv_expiry,
-                    });
+                    amount_sat: htlc.amount_msat / 1000,
+                    payment_hash: htlc.payment_hash,
+                    cltv_expiry: htlc.cltv_expiry,
+                });
             }
             HtlcDirection::Received => {
                 received_htlcs.push(HTLCOutput {

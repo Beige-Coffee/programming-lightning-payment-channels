@@ -16,11 +16,13 @@ pub fn calculate_commitment_tx_fee(
     (feerate_per_kw * weight as u64) / 1000
 }
 
-/// Exercise 19: Calculate HTLC transaction fee
-/// 
-/// HTLC transactions have a constant weight of 677 (from BOLT 3)
-pub fn calculate_htlc_tx_fee(feerate_per_kw: u64) -> u64 {
-    const HTLC_TX_WEIGHT: u64 = 677;
+pub fn calculate_htlc_timeout_tx_fee(feerate_per_kw: u64) -> u64 {
+    const HTLC_TX_WEIGHT: u64 = 663;
+    (feerate_per_kw * HTLC_TX_WEIGHT) / 1000
+}
+
+pub fn calculate_htlc_success_tx_fee(feerate_per_kw: u64) -> u64 {
+    const HTLC_TX_WEIGHT: u64 = 703;
     (feerate_per_kw * HTLC_TX_WEIGHT) / 1000
 }
 
@@ -33,7 +35,15 @@ pub fn is_htlc_dust(
     htlc_amount_sat: u64,
     dust_limit_satoshis: u64,
     feerate_per_kw: u64,
+    outbound_htlc: bool,
 ) -> bool {
-    let htlc_tx_fee = calculate_htlc_tx_fee(feerate_per_kw);
+    
+    
+    let htlc_tx_fee = if outbound_htlc {
+       calculate_htlc_timeout_tx_fee(feerate_per_kw)
+    } else {
+        calculate_htlc_success_tx_fee(feerate_per_kw)
+    };
+        
     htlc_amount_sat < dust_limit_satoshis + htlc_tx_fee
 }

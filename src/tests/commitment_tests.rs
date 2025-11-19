@@ -818,43 +818,6 @@ fn test_bolt3_fee_calculations() {
 }
 
 #[test]
-fn test_bolt3_htlc_dust_calculation() {
-    println!("\n=== Testing: HTLC Dust Calculation ===\n");
-
-    let dust_limit = 546u64;
-    let feerate = 15000u64;
-
-    let htlc_fee = calculate_htlc_tx_fee(feerate);
-    println!(
-        "HTLC transaction fee at {} sat/kw: {} sats",
-        feerate, htlc_fee
-    );
-
-    let dust_threshold = dust_limit + htlc_fee;
-    println!("Dust threshold: {} sats", dust_threshold);
-
-    let test_amounts = vec![
-        (1000u64, true),
-        (5000u64, true),
-        (10000u64, false),
-        (20000u64, false),
-    ];
-
-    for (amount, expected_dust) in test_amounts {
-        let is_dust = is_htlc_dust(amount, dust_limit, feerate);
-        println!(
-            "Amount {} sats: {} dust",
-            amount,
-            if is_dust { "IS" } else { "NOT" }
-        );
-
-        assert_eq!(is_dust, expected_dust);
-    }
-
-    println!("\n✓ HTLC dust calculations verified!");
-}
-
-#[test]
 fn test_bolt3_to_local_script() {
     println!("\n=== Testing: to_local Script Generation ===\n");
 

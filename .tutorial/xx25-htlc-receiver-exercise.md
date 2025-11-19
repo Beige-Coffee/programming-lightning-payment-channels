@@ -1,0 +1,300 @@
+# ⚡️ Create Received HTLC Script
+
+We're almost finished coding our BOLT 3-compliant Lightning implementation. Let's bring it home by building our **received HTLC script**!
+
+For this exercise, head back to `src/exercises/scripts/htlc.rs`. In this file, you'll find the `create_received_htlc_script` function, which takes the following inputs:
+- `revocation_pubkey`: Our **Revocation Public Key**, which is created by combining our counterparty's **Revocation Basepoint** with our **Per-Commitment Point**.
+- `local_htlcpubkey`: Our **HTLC Public Key**, which is derived from our **HTLC Basepoint** and our **Per-Commitment Point**.
+- `remote_htlcpubkey`:Our counterparty's **HTLC Public Key**, which is derived from their **HTLC Basepoint** and our **Per-Commitment Point**.
+- `payment_hash`: The hash of the payment preimage.
+
+```rust
+pub fn create_received_htlc_script(
+    revocation_pubkey: &PublicKey,
+    local_htlcpubkey: &PublicKey,
+    remote_htlcpubkey: &PublicKey,
+    payment_hash: &[u8; 32],
+    cltv_expiry: u32,
+) -> ScriptBuf {
+
+
+    let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
+    let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
+
+    let script = Builder::new()
+        .push_opcode(opcodes::OP_DUP)
+        .push_opcode(opcodes::OP_HASH160)
+        .push_slice(&revocation_pubkey_hash)
+        .push_opcode(opcodes::OP_EQUAL)
+        .push_opcode(opcodes::OP_IF)
+        .push_opcode(opcodes::OP_CHECKSIG)
+        .push_opcode(opcodes::OP_ELSE)
+        .push_slice(remote_htlcpubkey.serialize())
+        .push_opcode(opcodes::OP_SWAP)
+        .push_opcode(opcodes::OP_SIZE)
+        .push_int(32)
+        .push_opcode(opcodes::OP_EQUAL)
+        .push_opcode(opcodes::OP_IF)
+        .push_opcode(opcodes::OP_HASH160)
+        .push_slice(payment_hash160)
+        .push_opcode(opcodes::OP_EQUALVERIFY)
+        .push_int(2)
+        .push_opcode(opcodes::OP_SWAP)
+        .push_slice(local_htlcpubkey.serialize())
+        .push_int(2)
+        .push_opcode(opcodes::OP_CHECKMULTISIG)
+        .push_opcode(opcodes::OP_ELSE)
+        .push_opcode(opcodes::OP_DROP)
+        .push_int(cltv_expiry as i64)
+        .push_opcode(opcodes::OP_CLTV)
+        .push_opcode(opcodes::OP_DROP)
+        .push_opcode(opcodes::OP_CHECKSIG)
+        .push_opcode(opcodes::OP_ENDIF)
+        .push_opcode(opcodes::OP_ENDIF)
+        .into_script();
+
+    script
+}
+```
+<details>
+  <summary>Step 1: Prepare the Hash Values</summary>
+
+Just like we did with the HTLC Offerer script, let's start by preparing two hash values that will be used in the script. The first is the RIPEMD160 of the payment (preimage) hash. The second is the public key hash of the **Revocation Public Key**.
+
+```rust
+let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
+let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
+```
+
+</details>
+
+<details>
+  <summary>Step 2: Start the Revocation Check</summary>
+
+The revocation path is identical to the offered HTLC. 
+
+We first check if the provided value is equal to the hash of the **Revocation Public Key**. To do this, we use `DUP HASH160 <hash> EQUAL` to check if the two data elements are equal.
+
+```rust
+Builder::new()
+    .push_opcode(opcodes::OP_DUP)
+    .push_opcode(opcodes::OP_HASH160)
+    .push_slice(&revocation_pubkey_hash)
+    .push_opcode(opcodes::OP_EQUAL)
+    .push_opcode(opcodes::OP_IF)
+    .push_opcode(opcodes::OP_CHECKSIG)
+    .push_opcode(opcodes::OP_ELSE)
+```
+
+</details>
+
+<details>
+  <summary>Step 3: Set Up Success vs Timeout Logic</summary>
+
+Okay, here's where received HTLC script starts to differ from offered HTLCs!
+
+We still check the witness element size, but the logic is flipped: if the witness element is exactly 32 bytes (preimge), we take the IF branch. Otherwise, we execute the Else branch.
+
+```rust
+.push_slice(remote_htlcpubkey.serialize())
+.push_opcode(opcodes::OP_SWAP)
+.push_opcode(opcodes::OP_SIZE)
+.push_int(32)
+.push_opcode(opcodes::OP_EQUAL)
+.push_opcode(opcodes::OP_IF)
+```
+
+</details>
+
+<details>
+  <summary>Step 4: Handle the Success Path (2-of-2 Multisig with Preimage)</summary>
+
+For received HTLCs, we claim the payment (success path) by providing the preimage **and** the signatures required to spend from the 2-of-2 multisig.
+
+```rust
+.push_opcode(opcodes::OP_HASH160)
+.push_slice(payment_hash160)
+.push_opcode(opcodes::OP_EQUALVERIFY)
+.push_int(2)
+.push_opcode(opcodes::OP_SWAP)
+.push_slice(local_htlcpubkey.serialize())
+.push_int(2)
+.push_opcode(opcodes::OP_CHECKMULTISIG)
+.push_opcode(opcodes::OP_ELSE)
+```
+
+Breaking this down:
+- `HASH160` hashes the 32-byte preimage
+- We verify it matches our stored payment hash
+- Then we require 2-of-2 signatures from both parties' HTLC keys
+
+</details>
+
+<details>
+  <summary>Step 5: Handle the Timeout Path (with CLTV)</summary>
+
+If there's no preimage, then the counterparty (Alice) can simply reclaim their funds after the CLTV expiry.
+
+```rust
+.push_opcode(opcodes::OP_DROP)
+.push_int(cltv_expiry as i64)
+.push_opcode(opcodes::OP_CLTV)
+.push_opcode(opcodes::OP_DROP)
+.push_opcode(opcodes::OP_CHECKSIG)
+.push_opcode(opcodes::OP_ENDIF)
+```
+
+Below is a breakdown of what's going on:
+- `DROP` removes the size value from the stack
+- We push the `cltv_expiry` block height
+- `OP_CLTV` enforces that this path can only be taken after that block height
+- We `DROP` the timelock value (CLTV doesn't consume it)
+- `CHECKSIG` verifies the signature using the remote HTLC pubkey (already on stack from Step 3)
+- `ENDIF` closes the inner IF/ELSE (success vs timeout)
+
+</details>
+
+<details>
+  <summary>Step 6: Close the Outer Conditional</summary>
+
+Finally, we close the outer IF/ELSE structure.
+
+```rust
+.push_opcode(opcodes::OP_ENDIF)
+.into_script();
+```
+
+</details>
+
+
+# ⚡️ Create HTLC Timeout Transaction
+
+Next up, let's build the **HTLC Success Transaction**! As we just learned, this is the counterpart to the HTLC Timeout Transaction - it enables Bob to claim a received HTLC when he obtains the payment preimage.
+
+For this exercise, head over to `src/exercises/transactions/htlc/rs`.
+
+
+The `create_htlc_success_transaction` takes the following parameters:
+- `htlc_outpoint`: The outpoint (txid + vout) of the HTLC output we're spending from. 
+- `htlc_amount`: The amount locked in the HTLC (in satoshis).
+- `cltv_expiry`: The absolute block height when this HTLC expires.
+- `local_keys`: Our commitment keys. See the dropdown below for more information.
+- `to_self_delay`: The number of blocks that we must wait before we can claim our funds using the **Delayed Payment Public Key** path.
+- `feerate_per_kw`: The fee rate in satoshis per 1000 weight units.
+
+```rust
+pub fn create_htlc_success_transaction(
+    htlc_outpoint: OutPoint,
+    htlc_amount: u64,
+    local_keys: &CommitmentKeys,
+    to_self_delay: u16,
+    feerate_per_kw: u64,
+) -> Transaction {
+    let fee = calculate_htlc_success_tx_fee(feerate_per_kw);
+    let output_amount = htlc_amount.saturating_sub(fee);
+
+    let secp = Secp256k1::new();
+
+    // Create to_local script
+    let to_local_script = create_to_local_script(
+        &local_keys.revocation_key,
+        &local_keys.local_delayed_payment_key,
+        to_self_delay,
+    );
+
+    let tx_in = TxIn {
+            previous_output: htlc_outpoint,
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::ZERO,
+            witness: Witness::new(),
+        };
+
+    let tx_out = TxOut {
+            value: Amount::from_sat(output_amount),
+            script_pubkey: to_local_script.to_p2wsh(),
+        };
+
+    Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::ZERO,
+        input: vec![tx_in],
+        output: vec![tx_out],
+    }
+
+}
+```
+
+<details>
+  <summary>Step 1: Calculate Fees and Output Amount</summary>
+
+Just like we did for the **HTLC Timeout Transaction**, we'll start by calculating the fee for the **HTLC Success Transaction**. However, we'll use a different function this time, as the **HTLC Success Transaction** will be larger since it includes a preimage in the witness.
+
+A helper function, `calculate_htlc_success_tx_fee` is available to use for this exercise. You can see the function definition below or view it in `src/exercises/transactions/fees.rs`.
+
+Once we have the fee for this transaction, which depends on the feerate, we'll determine the output amount by subtracting it from the `htlc_amount`. 
+
+```rust
+let fee = calculate_htlc_tx_fee(feerate_per_kw);
+let output_amount = htlc_amount.saturating_sub(fee);
+```
+
+</details>
+
+<details>
+  <summary>Step 2: Create the to_local Output Script</summary>
+
+Similar to the **HTLC Timeout Transaction**, the **HTLC Success Transaction** pays to a `to_local` script.
+
+```rust
+let to_local_script = create_to_local_script(
+    &local_keys.revocation_key,
+    &local_keys.local_delayed_payment_key,
+    to_self_delay,
+);
+```
+
+</details>
+
+<details>
+  <summary>Step 3: Create the Transaction Input</summary>
+
+Next, let's define our HTLC Success input! Similar to the Timeout Transaction, we'll keep it unsigned, so we just need to create a `TxIn` object.
+
+```rust
+let tx_in = TxIn {
+        previous_output: htlc_outpoint,
+        script_sig: ScriptBuf::new(),
+        sequence: Sequence::ZERO,
+        witness: Witness::new(),
+    };
+```
+</details>
+
+<details>
+  <summary>Step 4: Create the Transaction Output</summary>
+
+Now, let's create a `TxOut` object. Remember to cast the `ScriptBuf` to a P2WSH output (`.to_p2wsh()`)!
+```rust
+let tx_out = TxOut {
+        value: Amount::from_sat(output_amount),
+        script_pubkey: to_local_script.to_p2wsh(),
+    };
+```
+
+</details>
+
+<details>
+  <summary>Step 5: Assemble the Complete Transaction</summary>
+
+Go ahead and create the complete `Transaction`! The notable difference between this exercise and the Timeout Transaction is that there is no locktime expiry!
+
+```rust
+Transaction {
+    version: Version::TWO,
+    lock_time: LockTime::ZERO,
+    input: vec![tx_in],
+    output: vec![tx_out],
+}
+```
+
+</details>
