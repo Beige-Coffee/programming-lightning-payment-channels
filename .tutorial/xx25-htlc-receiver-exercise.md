@@ -302,20 +302,20 @@ Transaction {
 
 # ⚡️ Finalize HTLC Success Transaction
 
-Our HTLC Timeout functionality is almost fully implemented! There are just two important pieces left: generating our signature and building the witness. So, for this exercise, we'll tackle those two steps by building the `finalize_htlc_timeout` function.
+Nice, our HTLC Success functionality is almost done! Now, just like we did with our HTLC Timeout Transaction, we need to write code to generate our signature and build the witness for our HTLC Success Transaction.
 
-This function takes the following parameters:
+For this exercise, we'll complete `finalize_htlc_success`, which takes the following parameters:
 - `keys_manager`: Our Channel Keys Manager, which holds our HTLC Basepoint Secret and can generate signatures.
-- `tx`: The unsigned HTLC timeout transaction we created earlier.
-- `input_index`: The index of the input we're signing on the HTLC Timeout Transaction.
-- `htlc_script`: The offered HTLC script that we're spending from.
+- `tx`: The unsigned HTLC Success Transaction we created earlier.
+- `input_index`: The index of the input we're signing on the HTLC Success Transaction.
+- `htlc_script`: The received HTLC script that we're spending from.
 - `htlc_amount`: The amount in the HTLC output (needed for signature generation).
 - `remote_htlc_signature`: Our counterparty's signature (pre-signed when the HTLC was created).
 
 Go ahead and try implementing the function below! To successfully complete this exercise, you'll need to generate your (local) HTLC signture and then add the following witness to the transaction.
 
 ```
-0 <remotehtlcsig> <localhtlcsig> <> htlc_script
+0 <remotehtlcsig> <localhtlcsig>  <payment_preimage>
 ```
 
 ```rust
@@ -352,3 +352,143 @@ pub fn finalize_htlc_success(
     signed_tx
 }
 ```
+
+<details>
+  <summary>Step 1: Fetch the Local HTLC Private Key</summary>
+
+Since we'll need to generate our own signature, using the **HTLC Basepoint Secret**, we'll need to start by fetching the secret from our `ChannelKeyManager`. You can click the dropdown below if you need a reminder of the `ChannelKeyManager` structure.
+
+<details>
+  <summary>ChannelKeyManager</summary>
+
+```rust
+pub struct ChannelKeyManager {
+    pub funding_key: SecretKey,
+    pub revocation_base_key: SecretKey,
+    pub payment_base_key: SecretKey,
+    pub delayed_payment_base_key: SecretKey,
+    pub htlc_base_key: SecretKey,
+    pub commitment_seed: [u8; 32],
+    pub secp_ctx: Secp256k1<All>,
+}
+```
+
+</details>
+
+
+```rust
+let local_htlc_privkey = keys_manager.htlc_base_key;
+```
+
+</details>
+
+<details>
+  <summary>Step 2: Sign the Transaction Input</summary>
+
+Next, let's generate our signature for the HTLC offerer output on our commitment transaction. To do this, we can use the `sign_transaction_input` function we created earlier in this course.
+
+<details>
+  <summary>Click to see sign_transaction_input function definition </summary>
+
+We implemented the `sign_transaction_input` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
+
+```rust
+pub fn sign_transaction_input(
+    &self,
+    tx: &Transaction,
+    input_index: usize,
+    script: &ScriptBuf,
+    amount: u64,
+    secret_key: &SecretKey,
+) -> Vec<u8> {
+    let mut sighash_cache = SighashCache::new(tx);
+
+    let sighash = sighash_cache
+        .p2wsh_signature_hash(
+            input_index,
+            script,
+            Amount::from_sat(amount),
+            EcdsaSighashType::All,
+        )
+        .expect("Valid sighash");
+
+    let msg = Message::from_digest(sighash.to_byte_array());
+    let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
+
+    let mut sig_bytes = sig.serialize_der().to_vec();
+    sig_bytes.push(EcdsaSighashType::All as u8);
+    sig_bytes
+}
+```
+
+</details>
+
+```rust
+let local_htlc_signature = keys_manager.sign_transaction_input(
+    &tx,
+    input_index,
+    &htlc_script,
+    htlc_amount,
+    &local_htlc_privkey,
+);
+```
+
+</details>
+
+
+<details>
+  <summary>Step 3: Build the Witness Stack</summary>
+
+Now, let's build the witness stack!
+
+```rust
+let witness = Witness::from_slice(&[
+    &[][..],                        // OP_0 for CHECKMULTISIG bug
+    &remote_htlc_signature[..],
+    &local_htlc_signature[..],
+    &payment_preimage[..],          // The 32-byte preimage for success path
+    htlc_script.as_bytes(),
+]);
+```
+
+Below is a breakdown of each element:
+
+1. **Empty byte array (`&[][..]`)**: First, we need to add a dummy element to the stack (`OP_0`), since there is an `OP_CHECKMULTISIG` error that pops an extra item of the stack.
+
+2. **Remote HTLC signature**: Next, we add our counterparty's pre-signed signature. Remember, they give this to use when we are setting up the HTLC!
+
+3. **Local HTLC signature**: Then we add our signature, which we just created.
+
+4. **Payment preimage (`&payment_preimage[..]`)**: This is the key difference from the witness we created for the Timeout Transaction! Since the preimage is exactly 32 bytes, it will cause the Bitcoin script interpreter to evaluate the success path (IF branch). The interpreter will then hash the preimage and check if it matches the payment hash.
+
+```
+OP_DUP OP_HASH160 <RIPEMD160(SHA256(revocationpubkey))> OP_EQUAL
+OP_IF
+    OP_CHECKSIG
+OP_ELSE
+    <remote_htlcpubkey> OP_SWAP OP_SIZE 32 OP_EQUAL
+    OP_IF
+        # To local node via HTLC-success transaction.
+        OP_HASH160 <RIPEMD160(payment_hash)> OP_EQUALVERIFY
+        2 OP_SWAP <local_htlcpubkey> 2 OP_CHECKMULTISIG
+```
+
+5. **HTLC script**: Finally, we provide the full received HTLC script.
+
+</details>
+
+<details>
+  <summary>Step 4: Insert Witness into the Transaction</summary>
+
+Lastly, we'll add the witness to the transaction's input.
+
+Don't forget to return the signed transaction!
+
+```rust
+let mut signed_tx = tx;
+signed_tx.input[0].witness = witness;
+
+signed_tx
+```
+
+</details>

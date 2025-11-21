@@ -371,21 +371,75 @@ pub fn finalize_htlc_timeout(
 ```
 
 <details>
-  <summary>Step 1: Get the Local HTLC Private Key</summary>
+  <summary>Step 1: Fetch the Local HTLC Private Key</summary>
 
-First, we need to retrieve our HTLC private key from the keys manager:
+Since we'll need to generate our own signature, using the **HTLC Basepoint Secret**, we'll need to start by fetching the secret from our `ChannelKeyManager`. You can click the dropdown below if you need a reminder of the `ChannelKeyManager` structure.
+
+<details>
+  <summary>ChannelKeyManager</summary>
+
+```rust
+pub struct ChannelKeyManager {
+    pub funding_key: SecretKey,
+    pub revocation_base_key: SecretKey,
+    pub payment_base_key: SecretKey,
+    pub delayed_payment_base_key: SecretKey,
+    pub htlc_base_key: SecretKey,
+    pub commitment_seed: [u8; 32],
+    pub secp_ctx: Secp256k1<All>,
+}
+```
+
+</details>
+
+
 ```rust
 let local_htlc_privkey = keys_manager.htlc_base_key;
 ```
-
-This is the private key that corresponds to our `local_htlcpubkey` that was used in the offered HTLC script. We'll use this to create our signature for the 2-of-2 multisig.
 
 </details>
 
 <details>
   <summary>Step 2: Sign the Transaction Input</summary>
 
-Now we create our signature for this specific transaction input:
+Next, let's generate our signature for the HTLC offerer output on our commitment transaction. To do this, we can use the `sign_transaction_input` function we created earlier in this course.
+
+<details>
+  <summary>Click to see sign_transaction_input function definition </summary>
+
+We implemented the `sign_transaction_input` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
+
+```rust
+pub fn sign_transaction_input(
+    &self,
+    tx: &Transaction,
+    input_index: usize,
+    script: &ScriptBuf,
+    amount: u64,
+    secret_key: &SecretKey,
+) -> Vec<u8> {
+    let mut sighash_cache = SighashCache::new(tx);
+
+    let sighash = sighash_cache
+        .p2wsh_signature_hash(
+            input_index,
+            script,
+            Amount::from_sat(amount),
+            EcdsaSighashType::All,
+        )
+        .expect("Valid sighash");
+
+    let msg = Message::from_digest(sighash.to_byte_array());
+    let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
+
+    let mut sig_bytes = sig.serialize_der().to_vec();
+    sig_bytes.push(EcdsaSighashType::All as u8);
+    sig_bytes
+}
+```
+
+</details>
+
 ```rust
 let local_htlc_signature = keys_manager.sign_transaction_input(
     &tx,
@@ -396,19 +450,13 @@ let local_htlc_signature = keys_manager.sign_transaction_input(
 );
 ```
 
-The `sign_transaction_input` method handles all the complexity of creating a valid signature:
-- It creates the sighash (the hash of the transaction data to be signed)
-- Signs it with our private key
-- Returns a DER-encoded signature with the appropriate SIGHASH flag
-
-This signature proves we authorize spending from the HTLC output.
-
 </details>
 
 <details>
   <summary>Step 3: Build the Witness Stack</summary>
 
-Now comes the critical part - building the witness stack in the exact order that the HTLC script expects:
+Now, let's build the witness stack!
+
 ```rust
 let witness = Witness::from_slice(&[
     &[][..],                        // OP_0 for CHECKMULTISIG bug
@@ -419,47 +467,32 @@ let witness = Witness::from_slice(&[
 ]);
 ```
 
-Let's break down each element:
+Below is a breakdown of each element:
 
-1. **Empty byte array (`&[][..]`)**: This is the famous CHECKMULTISIG bug workaround. Due to an off-by-one error in Bitcoin's CHECKMULTISIG implementation, it pops one extra element from the stack. We provide a dummy OP_0 to satisfy this.
+1. **Empty byte array (`&[][..]`)**: First, we need to add a dummy element to the stack (`OP_0`), since there is an `OP_CHECKMULTISIG` error that pops an extra item of the stack.
 
-2. **Remote HTLC signature**: The counterparty's pre-signed signature. They gave us this when we first added the HTLC to the channel.
+2. **Remote HTLC signature**: Next, we add our counterparty's pre-signed signature. Remember, they give this to use when we are setting up the HTLC!
 
-3. **Local HTLC signature**: Our signature that we just created in Step 2.
+3. **Local HTLC signature**: Then we add our signature, which we just created.
 
-4. **Empty byte array (`&[][..]`)**: This is OP_FALSE, which tells the script to take the timeout path (remember, the script checks the size - not 32 bytes means timeout, and uses NOTIF). This empty array ensures we don't take the success path.
+4. **Empty byte array (`&[][..]`)**: This is `OP_FALSE`, which tells the script to take the timeout path.
 
-5. **HTLC script**: The full offered HTLC script. In SegWit (P2WSH), we always provide the actual script in the witness when spending.
-
-The order matters! The script will pop these elements in reverse order and execute them.
+5. **HTLC script**: Finally, we have to provide the full offered HTLC script.
 
 </details>
 
 <details>
-  <summary>Step 4: Attach the Witness to the Transaction</summary>
+  <summary>Step 4: Insert Witness into the Transaction</summary>
 
-Finally, we add the witness to the transaction's input:
+Lastly, we'll add the witness to the transaction's input.
+
+Don't forget to return the signed transaction!
+
 ```rust
 let mut signed_tx = tx;
 signed_tx.input[0].witness = witness;
-```
 
-We make the transaction mutable (since we're modifying it), then set the witness field of the first input (index 0). 
-
-Note: We use `input[0]` because HTLC timeout transactions only have one input - the HTLC output from the commitment transaction.
-
-</details>
-
-<details>
-  <summary>Step 5: Return the Finalized Transaction</summary>
-```rust
 signed_tx
 ```
-
-We return the now-complete transaction, which includes:
-- The transaction structure (inputs, outputs, lock_time, etc.)
-- The witness data with both signatures and the script
-
-This transaction is now ready to be broadcast to the Bitcoin network!
 
 </details>
