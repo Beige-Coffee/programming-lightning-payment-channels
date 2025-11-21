@@ -7,7 +7,7 @@ use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use crate::keys::derive_revocation_public_key;
 use crate::scripts::create_to_local_script;
 use crate::transactions::fees::{calculate_htlc_success_tx_fee, calculate_htlc_timeout_tx_fee};
-use crate::types::CommitmentKeys;
+use crate::types::{CommitmentKeys, ChannelKeyManager};
 
 // ============================================================================
 // HTLC TRANSACTIONS
@@ -99,64 +99,94 @@ pub fn create_htlc_timeout_transaction(
 }
 
 // ============================================================================
-// HTLC WITNESS CONSTRUCTION
+// HTLC FINALIZATION (STUDENT EXERCISES)
 // ============================================================================
 
-/// Create witness for HTLC-success transaction
-/// 
-/// This function constructs the witness for claiming an HTLC with the payment preimage.
-/// It signs the transaction with the local HTLC key and combines it with the remote
-/// signature to create the complete witness stack.
-/// 
-/// In a real Lightning implementation, you would:
-/// 1. Create the unsigned HTLC transaction
-/// 2. Send it to your counterparty to get their signature
-/// 3. Sign it yourself with your local key
-/// 4. Combine both signatures to create the witness
-/// 
+/// Exercise 30: Finalize an HTLC-success transaction by signing it and attaching the witness
+///
+/// This function completes the HTLC-success transaction by:
+/// 1. Signing the transaction with the local HTLC key
+/// 2. Creating the witness stack with both local and remote signatures, plus the payment preimage
+/// 3. Attaching the witness to the transaction input
+///
+/// Returns the fully signed and finalized transaction ready for broadcast.
+///
 /// Witness stack: [0, remote_htlc_sig, local_htlc_sig, payment_preimage, htlc_script]
-pub fn create_htlc_success_witness(
-    remote_htlc_signature: Vec<u8>,
-    local_htlc_signature: Vec<u8>,
-    payment_preimage: [u8; 32],
+pub fn finalize_htlc_success(
+    keys_manager: ChannelKeyManager,
+    tx: Transaction,
+    input_index: usize,
     htlc_script: &ScriptBuf,
-) -> Witness {
+    htlc_amount: u64,
+    remote_htlc_signature: Vec<u8>,
+    payment_preimage: [u8; 32],
+) -> Transaction {
 
-    // Build witness stack
-    Witness::from_slice(&[
+    let local_htlc_privkey = keys_manager.htlc_base_key;
+
+    let local_htlc_signature = keys_manager.sign_transaction_input(
+        &tx,
+        input_index,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_privkey,
+    );
+
+    let witness = Witness::from_slice(&[
         &[][..],                        // OP_0 for CHECKMULTISIG bug
         &remote_htlc_signature[..],
         &local_htlc_signature[..],
         &payment_preimage[..],
-        htlc_script.as_bytes(),
-    ])
+    ]);
+
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    signed_tx
+
 }
 
-/// Create witness for HTLC-timeout transaction
-/// 
-/// This function constructs the witness for claiming an HTLC after it times out.
-/// It signs the transaction with the local HTLC key and combines it with the remote
-/// signature to create the complete witness stack.
-/// 
-/// In a real Lightning implementation, you would:
-/// 1. Create the unsigned HTLC transaction
-/// 2. Send it to your counterparty to get their signature
-/// 3. Sign it yourself with your local key
-/// 4. Combine both signatures to create the witness
-/// 
+/// Exercise 31: Finalize an HTLC-timeout transaction by signing it and attaching the witness
+///
+/// This function completes the HTLC-timeout transaction by:
+/// 1. Signing the transaction with the local HTLC key
+/// 2. Creating the witness stack with both local and remote signatures
+/// 3. Attaching the witness to the transaction input
+///
+/// Returns the fully signed and finalized transaction ready for broadcast.
+///
 /// Witness stack: [0, remote_htlc_sig, local_htlc_sig, 0 (false), htlc_script]
-pub fn create_htlc_timeout_witness(
-    remote_htlc_signature: Vec<u8>,
-    local_htlc_signature: Vec<u8>,
+pub fn finalize_htlc_timeout(
+    keys_manager: ChannelKeyManager,
+    tx: Transaction,
+    input_index: usize,
     htlc_script: &ScriptBuf,
-) -> Witness {
+    htlc_amount: u64,
+    remote_htlc_signature: Vec<u8>,
+) -> Transaction {
+
+    let local_htlc_privkey = keys_manager.htlc_base_key;
+
+    let local_htlc_signature = keys_manager.sign_transaction_input(
+        &tx,
+        input_index,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_privkey,
+    );
 
     // Build witness stack
-    Witness::from_slice(&[
+    let witness = Witness::from_slice(&[
         &[][..],                        // OP_0 for CHECKMULTISIG bug
         &remote_htlc_signature[..],
         &local_htlc_signature[..],
         &[][..],                        // OP_FALSE for timeout path
         htlc_script.as_bytes(),
-    ])
+    ]);
+
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    signed_tx
+
 }

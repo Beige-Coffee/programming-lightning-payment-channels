@@ -5,8 +5,8 @@ use crate::scripts::funding::create_funding_script;
 use crate::scripts::htlc::create_offered_htlc_script;
 use crate::keys::commitment::{derive_private_key};
 use crate::transactions::commitment::{create_commitment_witness};
-use crate::transactions::htlc::{create_htlc_timeout_transaction, create_htlc_timeout_witness};
-use crate::types::{CommitmentKeys, KeyFamily};
+use crate::transactions::htlc::{create_htlc_timeout_transaction, finalize_htlc_timeout};
+use crate::types::{CommitmentKeys,ChannelKeyManager, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
@@ -103,36 +103,29 @@ pub async fn run(funding_txid: String) {
         feerate_per_kw,
     );
 
+    // The input_index is the index of the input in the transaction being signed
+    // Since the HTLC timeout transaction has only one input, it's always 0
+    let input_index = 0;
+
     // Step 2: In real Lightning, we would send this transaction to our counterparty
     // and they would send us back their signature. Here we simulate that by
     // creating their signature ourselves (but in reality we wouldn't have their key!)
     let remote_htlc_signature = remote_channel_keys_manager.sign_transaction_input(
         &tx,
-        0,
+        input_index,
         &htlc_script,
         htlc_amount,
         &remote_htlc_secret,
     );
 
-    let local_htlc_signature = our_channel_keys_manager.sign_transaction_input(
-        &tx,
-        0,
+    let signed_tx = finalize_htlc_timeout(
+        our_channel_keys_manager,
+        tx,
+        input_index,
         &htlc_script,
         htlc_amount,
-        &local_htlc_secret,
-    );
+        remote_htlc_signature);
 
-    // Step 3: Sign the transaction with OUR key and create witness
-    // Note: We only pass our local key, not the remote key
-    let witness = create_htlc_timeout_witness(
-        remote_htlc_signature,
-        local_htlc_signature,
-        &htlc_script,
-    );
-
-    // Step 4: Attach the witness to the transaction
-    let mut signed_tx = tx;
-    signed_tx.input[0].witness = witness;
 
     println!("\n✓ HTLC Timeout Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());

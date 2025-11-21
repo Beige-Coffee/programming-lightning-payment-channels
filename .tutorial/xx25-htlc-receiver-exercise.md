@@ -298,3 +298,57 @@ Transaction {
 ```
 
 </details>
+
+
+# ⚡️ Finalize HTLC Success Transaction
+
+Our HTLC Timeout functionality is almost fully implemented! There are just two important pieces left: generating our signature and building the witness. So, for this exercise, we'll tackle those two steps by building the `finalize_htlc_timeout` function.
+
+This function takes the following parameters:
+- `keys_manager`: Our Channel Keys Manager, which holds our HTLC Basepoint Secret and can generate signatures.
+- `tx`: The unsigned HTLC timeout transaction we created earlier.
+- `input_index`: The index of the input we're signing on the HTLC Timeout Transaction.
+- `htlc_script`: The offered HTLC script that we're spending from.
+- `htlc_amount`: The amount in the HTLC output (needed for signature generation).
+- `remote_htlc_signature`: Our counterparty's signature (pre-signed when the HTLC was created).
+
+Go ahead and try implementing the function below! To successfully complete this exercise, you'll need to generate your (local) HTLC signture and then add the following witness to the transaction.
+
+```
+0 <remotehtlcsig> <localhtlcsig> <> htlc_script
+```
+
+```rust
+pub fn finalize_htlc_success(
+    keys_manager: ChannelKeyManager,
+    tx: Transaction,
+    input_index: usize,
+    htlc_script: &ScriptBuf,
+    htlc_amount: u64,
+    remote_htlc_signature: Vec<u8>,
+    payment_preimage: [u8; 32],
+) -> Transaction {
+
+    let local_htlc_privkey = keys_manager.htlc_base_key;
+
+    let local_htlc_signature = keys_manager.sign_transaction_input(
+        &tx,
+        input_index,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_privkey,
+    );
+
+    let witness = Witness::from_slice(&[
+        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &payment_preimage[..],
+    ]);
+
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    signed_tx
+}
+```

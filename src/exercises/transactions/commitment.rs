@@ -296,7 +296,15 @@ pub fn create_commitment_witness(
     ])
 }
 
-pub fn sign_holder_commitmentment(
+/// Finalize a holder commitment transaction by signing it and attaching the witness
+///
+/// This function completes the commitment transaction by:
+/// 1. Signing the transaction with the local funding key
+/// 2. Creating the witness stack with both local and remote signatures
+/// 3. Attaching the witness to the transaction input
+///
+/// Returns the fully signed and finalized transaction ready for broadcast.
+pub fn finalize_holder_commitment(
     keys_manager: ChannelKeyManager,
     tx: Transaction,
     input_index: usize,

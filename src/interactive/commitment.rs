@@ -2,7 +2,7 @@ use crate::internal::bitcoind_client::{get_bitcoind_client, BitcoindClient};
 use crate::internal::helper::get_outpoint;
 use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
-use crate::transactions::commitment::{create_commitment_transaction, sign_holder_commitmentment};
+use crate::transactions::commitment::{create_commitment_transaction, finalize_holder_commitment};
 use crate::types::{CommitmentKeys, KeyFamily, HTLCOutput};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::locktime::absolute::LockTime;
@@ -101,7 +101,7 @@ pub async fn run(funding_txid: String) {
         &remote_funding_privkey,
     );
 
-    let signed_tx = sign_holder_commitmentment(
+    let signed_tx = finalize_holder_commitment(
         our_channel_keys_manager,
         tx,
         txid_index,

@@ -315,3 +315,151 @@ Transaction {
 ```
 
 </details>
+
+# ⚡️ Finalize HTLC Timeout Transaction
+
+Our HTLC Timeout functionality is almost fully implemented! There are just two important pieces left: generating our signature and building the witness. So, for this exercise, we'll tackle those two steps by building the `finalize_htlc_timeout` function.
+
+This function takes the following parameters:
+- `keys_manager`: Our Channel Keys Manager, which holds our HTLC Basepoint Secret and can generate signatures.
+- `tx`: The unsigned HTLC timeout transaction we created earlier.
+- `input_index`: The index of the input we're signing on the HTLC Timeout Transaction.
+- `htlc_script`: The offered HTLC script that we're spending from.
+- `htlc_amount`: The amount in the HTLC output (needed for signature generation).
+- `remote_htlc_signature`: Our counterparty's signature (pre-signed when the HTLC was created).
+
+Go ahead and try implementing the function below! To successfully complete this exercise, you'll need to generate your (local) HTLC signture and then add the following witness to the transaction.
+
+```
+0 <remotehtlcsig> <localhtlcsig> <> htlc_script
+```
+
+```rust
+pub fn finalize_htlc_timeout(
+    keys_manager: ChannelKeyManager,
+    tx: Transaction,
+    input_index: usize,
+    htlc_script: &ScriptBuf,
+    htlc_amount: u64,
+    remote_htlc_signature: Vec<u8>,
+) -> Transaction {
+
+    let local_htlc_privkey = keys_manager.htlc_base_key;
+
+    let local_htlc_signature = keys_manager.sign_transaction_input(
+        &tx,
+        input_index,
+        &htlc_script,
+        htlc_amount,
+        &local_htlc_privkey,
+    );
+
+    // Build witness stack
+    let witness = Witness::from_slice(&[
+        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &[][..],                        // OP_FALSE for timeout path
+        htlc_script.as_bytes(),
+    ]);
+
+    let mut signed_tx = tx;
+    signed_tx.input[0].witness = witness;
+
+    signed_tx
+}
+```
+
+<details>
+  <summary>Step 1: Get the Local HTLC Private Key</summary>
+
+First, we need to retrieve our HTLC private key from the keys manager:
+```rust
+let local_htlc_privkey = keys_manager.htlc_base_key;
+```
+
+This is the private key that corresponds to our `local_htlcpubkey` that was used in the offered HTLC script. We'll use this to create our signature for the 2-of-2 multisig.
+
+</details>
+
+<details>
+  <summary>Step 2: Sign the Transaction Input</summary>
+
+Now we create our signature for this specific transaction input:
+```rust
+let local_htlc_signature = keys_manager.sign_transaction_input(
+    &tx,
+    input_index,
+    &htlc_script,
+    htlc_amount,
+    &local_htlc_privkey,
+);
+```
+
+The `sign_transaction_input` method handles all the complexity of creating a valid signature:
+- It creates the sighash (the hash of the transaction data to be signed)
+- Signs it with our private key
+- Returns a DER-encoded signature with the appropriate SIGHASH flag
+
+This signature proves we authorize spending from the HTLC output.
+
+</details>
+
+<details>
+  <summary>Step 3: Build the Witness Stack</summary>
+
+Now comes the critical part - building the witness stack in the exact order that the HTLC script expects:
+```rust
+let witness = Witness::from_slice(&[
+    &[][..],                        // OP_0 for CHECKMULTISIG bug
+    &remote_htlc_signature[..],
+    &local_htlc_signature[..],
+    &[][..],                        // OP_FALSE for timeout path
+    htlc_script.as_bytes(),
+]);
+```
+
+Let's break down each element:
+
+1. **Empty byte array (`&[][..]`)**: This is the famous CHECKMULTISIG bug workaround. Due to an off-by-one error in Bitcoin's CHECKMULTISIG implementation, it pops one extra element from the stack. We provide a dummy OP_0 to satisfy this.
+
+2. **Remote HTLC signature**: The counterparty's pre-signed signature. They gave us this when we first added the HTLC to the channel.
+
+3. **Local HTLC signature**: Our signature that we just created in Step 2.
+
+4. **Empty byte array (`&[][..]`)**: This is OP_FALSE, which tells the script to take the timeout path (remember, the script checks the size - not 32 bytes means timeout, and uses NOTIF). This empty array ensures we don't take the success path.
+
+5. **HTLC script**: The full offered HTLC script. In SegWit (P2WSH), we always provide the actual script in the witness when spending.
+
+The order matters! The script will pop these elements in reverse order and execute them.
+
+</details>
+
+<details>
+  <summary>Step 4: Attach the Witness to the Transaction</summary>
+
+Finally, we add the witness to the transaction's input:
+```rust
+let mut signed_tx = tx;
+signed_tx.input[0].witness = witness;
+```
+
+We make the transaction mutable (since we're modifying it), then set the witness field of the first input (index 0). 
+
+Note: We use `input[0]` because HTLC timeout transactions only have one input - the HTLC output from the commitment transaction.
+
+</details>
+
+<details>
+  <summary>Step 5: Return the Finalized Transaction</summary>
+```rust
+signed_tx
+```
+
+We return the now-complete transaction, which includes:
+- The transaction structure (inputs, outputs, lock_time, etc.)
+- The witness data with both signatures and the script
+
+This transaction is now ready to be broadcast to the Bitcoin network!
+
+</details>

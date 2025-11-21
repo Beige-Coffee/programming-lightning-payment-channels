@@ -8,6 +8,48 @@ use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 use bitcoin::{OutPoint, Transaction, Witness};
 use hex;
 
+// ============================================================================
+// TEST-ONLY WITNESS CONSTRUCTION HELPERS
+// ============================================================================
+// These helper functions are used only in tests to construct witnesses
+// for verifying student implementations of finalize_htlc_success and
+// finalize_htlc_timeout.
+
+/// Create witness for HTLC-success transaction (test-only)
+/// 
+/// Witness stack: [0, remote_htlc_sig, local_htlc_sig, payment_preimage, htlc_script]
+fn create_htlc_success_witness(
+    remote_htlc_signature: Vec<u8>,
+    local_htlc_signature: Vec<u8>,
+    payment_preimage: [u8; 32],
+    htlc_script: &ScriptBuf,
+) -> Witness {
+    Witness::from_slice(&[
+        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &payment_preimage[..],
+        htlc_script.as_bytes(),
+    ])
+}
+
+/// Create witness for HTLC-timeout transaction (test-only)
+/// 
+/// Witness stack: [0, remote_htlc_sig, local_htlc_sig, 0 (false), htlc_script]
+fn create_htlc_timeout_witness(
+    remote_htlc_signature: Vec<u8>,
+    local_htlc_signature: Vec<u8>,
+    htlc_script: &ScriptBuf,
+) -> Witness {
+    Witness::from_slice(&[
+        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &[][..],                        // OP_FALSE for timeout path
+        htlc_script.as_bytes(),
+    ])
+}
+
 // Helper function to create the common test vector base
 // Based on BOLT3 Appendix C: Commitment and HTLC Transaction Test Vectors
 //
