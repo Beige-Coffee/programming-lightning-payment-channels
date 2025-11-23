@@ -19,9 +19,9 @@ use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub async fn run(funding_txid: String) {
+pub async fn run(commitment_txid: String) {
     // Parse the argument as txid
-    let txid = funding_txid;
+    let txid = commitment_txid;
 
     // get bitcoin client
     let bitcoind = get_bitcoind_client().await;
@@ -76,13 +76,13 @@ pub async fn run(funding_txid: String) {
         &secp_ctx,
     );
 
-    let txid_index = 0;
+    let txid_index = 1;
     let htlc_outpoint = get_outpoint(txid.to_string(), txid_index);
 
     let htlc_amount = 404_000;
     let cltv_expiry = 200;
     let to_self_delay = 144;
-    let feerate_per_kw = 15000;
+    let feerate_per_kw = 1117;
     let payment_hash = Sha256::hash(&[0u8; 32]).to_byte_array();
 
     // Create the HTLC script that we're spending from
@@ -127,7 +127,7 @@ pub async fn run(funding_txid: String) {
         remote_htlc_signature);
 
 
-    println!("\n✓ HTLC Timeout Transaction Created\n");
+    println!("\n✅ HTLC Timeout Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
     println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();

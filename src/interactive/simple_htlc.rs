@@ -91,7 +91,7 @@ pub async fn build_simple_htlc_tx(
 
     let signed_tx = sign_raw_transaction(bitcoind.clone(), tx).await;
 
-    println!("\n✓ Simple HTLC Transaction Created\n");
+    println!("\n✅ Simple HTLC Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
     println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();

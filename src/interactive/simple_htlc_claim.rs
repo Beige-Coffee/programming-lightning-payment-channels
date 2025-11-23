@@ -128,7 +128,7 @@ pub async fn build_simple_htlc_spend_tx(
             bob_privkey,
             );
 
-    println!("\n✓ Simple HTLC Transaction Created\n");
+    println!("\n✅ Simple HTLC Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
     println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();

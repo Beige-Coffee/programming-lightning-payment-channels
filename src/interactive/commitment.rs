@@ -109,7 +109,7 @@ pub async fn run(funding_txid: String) {
         funding_amount,
         remote_funding_signature);
 
-    println!("\n✓ Commitment Transaction Created\n");
+    println!("\n✅ Commitment Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
     println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();

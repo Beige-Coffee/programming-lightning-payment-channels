@@ -35,7 +35,7 @@ Tx ID:
 Tx Hex: 02000000000101e80a0a05a9b6495c1a6259e450a5f339e0c615ebab523958e53360f5a9e0262600000000001ad8bb800234440f00000000001600148c4e98f51715d292104530224efba56176fb39b1b8d83c000000000022002069fa2c947fd3a8a103b076b46bc5bea6c1035fee25a14270c6a6e420d234a4ab0400483045022100cb6abfe33ec9a2bf83d06f2e46efb0d538b3de19d5d63342818f7d20e0f4e07c022034b86af66b84825dd0e0fd115f434af6d553de959c2f424c5ffe3d1ca94c0afa0147304402206080abdfbcc21fd8259bb74500e87d31eceeaf3a19064683e388ea26788b78e902206bec6fd181c14a1bccc75ae58a5cd671cfec2241b099b4d14a3d006eae6e8c670147522102744c609aeee71a07136482b71244a6217b3368431603e1e3994d0c2d226403af2103cfa114ffa28b97884a028322665093af66bb19b0cf91c81eae46e6bb7fff799a52ae8cfe0720
 ```
 
-This is our commitment transaction! **Note: we have still NOT broadcasted our Funding Transaction yet**. That will come soon! Go ahead and copy the **Tx Hex** and **Tx ID** and save them in the file `src/exercises/transactions.txt` under the headings **Commitment Tx (No HTLCs) ID** and **Commitment Tx (No HTLCs) Hex**. 
+This is our commitment transaction! **Note: we have still NOT broadcasted our Funding Transaction yet**. That will come soon! Go ahead and copy the **Tx Hex** and **Tx ID** and save them in the file `src/exercises/transactions.txt` under the headings **Commitment Tx (Refund) ID** and **Commitment Tx (Refund) Hex**. 
 
 # Decoding Our Commitment Transaction
 

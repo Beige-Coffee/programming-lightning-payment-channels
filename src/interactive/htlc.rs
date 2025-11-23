@@ -66,10 +66,10 @@ pub async fn run(funding_txid: String) {
     let funding_outpoint = get_outpoint(txid.to_string(), txid_index);
 
     let funding_amount = 5_000_000;
-    let to_local_value = 3_593_500;
-    let to_remote_value = 1_000_500;
+    let to_local_value = 4_594_500;
+    let to_remote_value = 500;
     let to_self_delay = 144;
-    let feerate_per_kw = 15000;
+    let feerate_per_kw = 1117;
     let payment_hash = Sha256::hash(&[0u8; 32]).to_byte_array();
     let mut offered_htlcs: Vec<HTLCOutput> = Vec::new();
     offered_htlcs.push(HTLCOutput {
@@ -117,7 +117,7 @@ pub async fn run(funding_txid: String) {
         funding_amount,
         remote_funding_signature);
 
-    println!("\n✓ Commitment Transaction Created\n");
+    println!("\n✅ Commitment Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
     println!("\nTx Hex: {}", serialize_hex(&signed_tx));
     println!();

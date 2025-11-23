@@ -22,12 +22,6 @@ pub fn create_offered_htlc_script(
     remote_htlcpubkey: &PublicKey,
     payment_hash: &[u8; 32],
 ) -> ScriptBuf {
-    // Debug: Print all input variables
-    println!("=== create_offered_htlc_script inputs ===");
-    println!("revocation_pubkey: {}", hex::encode(revocation_pubkey.serialize()));
-    println!("local_htlcpubkey: {}", hex::encode(local_htlcpubkey.serialize()));
-    println!("remote_htlcpubkey: {}", hex::encode(remote_htlcpubkey.serialize()));
-    println!("payment_hash: {}", hex::encode(payment_hash));
     
     let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
     let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
@@ -61,10 +55,6 @@ pub fn create_offered_htlc_script(
         .push_opcode(opcodes::OP_ENDIF)
         .into_script();
     
-    // Debug: Print the script raw bytes
-    println!("Script raw bytes: {}", hex::encode(script.as_bytes()));
-    println!("========================================");
-    
     script
 }
 
@@ -81,15 +71,6 @@ pub fn create_received_htlc_script(
     
     let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
     let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
-
-    // Debug: Print all input variables
-    println!("=== create_received_htlc_script inputs ===");
-    println!("revocation_pubkey: {}", hex::encode(revocation_pubkey.serialize()));
-    println!("local_htlcpubkey: {}", hex::encode(local_htlcpubkey.serialize()));
-    println!("remote_htlcpubkey: {}", hex::encode(remote_htlcpubkey.serialize()));
-    println!("payment_hash: {}", hex::encode(payment_hash160));
-    println!("cltv_expiry: {}", cltv_expiry);
-
     
     let script = Builder::new()
         .push_opcode(opcodes::OP_DUP)
@@ -122,10 +103,6 @@ pub fn create_received_htlc_script(
         .push_opcode(opcodes::OP_ENDIF)
         .push_opcode(opcodes::OP_ENDIF)
         .into_script();
-    
-    // Debug: Print the script raw bytes
-    println!("Script raw bytes: {}", hex::encode(script.as_bytes()));
-    println!("==========================================");
     
     script
 }
