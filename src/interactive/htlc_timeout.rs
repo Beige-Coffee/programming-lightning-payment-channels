@@ -4,7 +4,6 @@ use crate::keys::derivation::new_keys_manager;
 use crate::scripts::funding::create_funding_script;
 use crate::scripts::htlc::create_offered_htlc_script;
 use crate::keys::commitment::{derive_private_key};
-use crate::transactions::commitment::{create_commitment_witness};
 use crate::transactions::htlc::{create_htlc_timeout_transaction, finalize_htlc_timeout};
 use crate::types::{CommitmentKeys,ChannelKeyManager, KeyFamily};
 use bitcoin::consensus::encode::serialize_hex;

@@ -12,24 +12,10 @@ use crate::types::{
 use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash};
 
-// ============================================================================
-// SECTION 10: HIGH-LEVEL WORKFLOW FUNCTIONS
-// ============================================================================
-// These exercises combine all previous concepts into complete workflows
-// for building commitment transactions in production and testing scenarios.
 
-/// Exercise 30 (Updated): Build complete commitment transaction with all features
-///
-/// This follows the LDK-style pattern:
-/// 1. Accept pre-derived CommitmentKeys (from Exercise 10 or 13)
-/// 2. Trim dust HTLCs (Exercise 22-23)
-/// 3. Build transaction with ALL outputs at once (Exercise 28 - updated)
-/// 4. Set obscured commitment number (Exercise 27)
-///
-/// This is the main function that combines all previous exercises.
 pub fn build_complete_commitment_transaction(
     funding_outpoint: OutPoint,
-    commitment_keys: &CommitmentKeys, // Accept pre-derived keys!
+    commitment_keys: &CommitmentKeys, 
     remote_payment_basepoint: &PublicKey,
     local_payment_basepoint: &PublicKey,
     to_local_value_msat: u64,
@@ -78,14 +64,6 @@ pub fn build_complete_commitment_transaction(
     tx
 }
 
-/// Exercise 31: Build commitment transaction from ChannelKeys (deriving keys)
-///
-/// PRODUCTION PATH: This is the typical production workflow.
-///
-/// Flow:
-/// 1. Start with ChannelKeys containing base keys (from Exercise 5)
-/// 2. Derive commitment-specific keys (Exercise 13)
-/// 3. Build transaction with those keys (Exercise 30)
 pub fn build_commitment_from_channel_keys(
     funding_outpoint: OutPoint,
     local_channel_keys: &ChannelKeyManager,
@@ -132,19 +110,7 @@ pub fn build_commitment_from_channel_keys(
     )
 }
 
-// ============================================================================
-// SECTION 11: BOLT 3 TEST VECTOR WORKFLOWS
-// ============================================================================
-// These exercises show how to use BOLT 3 test vectors to verify your
-// implementation matches the Lightning specification.
 
-/// Exercise 32: Build simple commitment transaction from BOLT 3 test vector
-///
-/// TESTING PATH: Use exact keys from BOLT 3 specification.
-///
-/// This demonstrates using CommitmentKeys.from_keys() to inject exact keys
-/// from test vectors instead of deriving them, allowing you to verify that
-/// your transaction construction produces the exact same output as the spec.
 pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transaction {
     let secp = Secp256k1::new();
 
@@ -209,8 +175,6 @@ pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transacti
     )
 }
 
-/// Exercise 33: Build commitment transaction with HTLCs from BOLT 3 test vector
-/// Similar to Exercise 32 but includes HTLC outputs for more complex testing
 pub fn build_bolt3_commitment_with_htlcs(
     test_vector: &Bolt3TestVector,
     htlcs: Vec<Bolt3Htlc>,
@@ -299,8 +263,6 @@ pub fn build_bolt3_commitment_with_htlcs(
     )
 }
 
-/// Exercise 34: Verify a transaction matches expected TXID
-/// Helper function to check if your built transaction matches the expected TXID
 pub fn verify_bolt3_txid(tx: &Transaction, expected_txid: &str) -> bool {
     let actual_txid = tx.compute_txid().to_string();
     actual_txid == expected_txid

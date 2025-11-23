@@ -5,62 +5,7 @@ use bitcoin::secp256k1::{All, PublicKey, Scalar, Secp256k1, SecretKey};
 
 use crate::types::CommitmentKeys;
 
-// ============================================================================
-// PER-COMMITMENT KEY DERIVATION (STANDALONE FUNCTIONS)
-// ============================================================================
-// These are utility functions for deriving keys from basepoints.
-// They are used by ChannelKeyManager methods but are also useful standalone.
-//
-// Note: The impl ChannelKeyManager methods (build_commitment_secret,
-// derive_per_commitment_point, get_commitment_keys) have been moved to
-// channel_key_manager.rs for better organization.
-
-/// Exercise 8: Derive public key from basepoint and per-commitment point
-pub fn derive_public_key(
-    basepoint: &PublicKey,
-    per_commitment_point: &PublicKey,
-    secp_ctx: &Secp256k1<All>,
-) -> PublicKey {
-    // pubkey = basepoint + SHA256(per_commitment_point || basepoint)
-    let mut engine = Sha256::engine();
-    engine.input(&per_commitment_point.serialize());
-    engine.input(&basepoint.serialize());
-    let res = Sha256::from_engine(engine);
-
-    let hashkey = PublicKey::from_secret_key(
-        &secp_ctx,
-        &SecretKey::from_slice(res.as_byte_array())
-            .expect("Hashes should always be valid keys unless SHA-256 is broken"),
-    );
-
-    basepoint.combine(&hashkey).expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
-}
-
-/// Exercise 9: Derive private key from base secret and per-commitment point
-pub fn derive_private_key(
-    base_secret: &SecretKey,
-    per_commitment_point: &PublicKey,
-    secp_ctx: &Secp256k1<All>,
-) -> SecretKey {
-    // privkey = base_secret + SHA256(per_commitment_point || basepoint)
-    let basepoint = PublicKey::from_secret_key(secp_ctx, base_secret);
-
-    let mut engine = Sha256::engine();
-    engine.input(&per_commitment_point.serialize());
-    engine.input(&basepoint.serialize());
-    let res = Sha256::from_engine(engine).to_byte_array();
-
-    base_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
-		.expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
-}
-
-// ============================================================================
-// REVOCATION KEY DERIVATION (Special Case)
-// ============================================================================
-// Revocation keys use a different derivation formula to allow the counterparty
-// to punish us if we broadcast an old state.
-
-/// Exercise 11: Derive revocation public key
+/// Exercise 8
 pub fn derive_revocation_public_key(
     revocation_basepoint: &PublicKey,
     per_commitment_point: &PublicKey,
@@ -93,7 +38,7 @@ pub fn derive_revocation_public_key(
     component1.combine(&component2).expect("Valid combination")
 }
 
-/// Exercise 12: Derive revocation private key
+/// Exercise 9
 pub fn derive_revocation_private_key(
     revocation_basepoint_secret: &SecretKey,
     per_commitment_secret: &SecretKey,
@@ -127,11 +72,52 @@ pub fn derive_revocation_private_key(
     key1.add_tweak(&scalar_key2).expect("Valid addition")
 }
 
+/// Exercise 12
+pub fn derive_public_key(
+    basepoint: &PublicKey,
+    per_commitment_point: &PublicKey,
+    secp_ctx: &Secp256k1<All>,
+) -> PublicKey {
+    // pubkey = basepoint + SHA256(per_commitment_point || basepoint)
+    let mut engine = Sha256::engine();
+    engine.input(&per_commitment_point.serialize());
+    engine.input(&basepoint.serialize());
+    let res = Sha256::from_engine(engine);
+
+    let hashkey = PublicKey::from_secret_key(
+        &secp_ctx,
+        &SecretKey::from_slice(res.as_byte_array())
+            .expect("Hashes should always be valid keys unless SHA-256 is broken"),
+    );
+
+    basepoint.combine(&hashkey).expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+}
+
+/// Exercise 13
+pub fn derive_private_key(
+    base_secret: &SecretKey,
+    per_commitment_point: &PublicKey,
+    secp_ctx: &Secp256k1<All>,
+) -> SecretKey {
+    // privkey = base_secret + SHA256(per_commitment_point || basepoint)
+    let basepoint = PublicKey::from_secret_key(secp_ctx, base_secret);
+
+    let mut engine = Sha256::engine();
+    engine.input(&per_commitment_point.serialize());
+    engine.input(&basepoint.serialize());
+    let res = Sha256::from_engine(engine).to_byte_array();
+
+    base_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
+		.expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
+}
+
+
+
+
+
+
+/// helper
 impl CommitmentKeys {
-    /// Exercise 10: Derive all commitment keys from basepoints and per-commitment point
-    ///
-    /// PRODUCTION PATH: Use this when you have basepoints and need to derive keys
-    /// for a specific commitment transaction. This is the normal flow in production.
     pub fn from_basepoints(
         per_commitment_point: &PublicKey,
         local_delayed_payment_basepoint: &PublicKey,
@@ -171,11 +157,6 @@ impl CommitmentKeys {
         }
     }
 
-    /// Create keys directly from provided public keys
-    ///
-    /// TESTING PATH: Use this when you have exact keys from BOLT 3 test vectors.
-    /// This allows you to inject specific keys without derivation to verify
-    /// your transaction construction matches the specification.
     pub fn from_keys(
         per_commitment_point: PublicKey,
         revocation_key: PublicKey,

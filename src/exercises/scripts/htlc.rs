@@ -8,13 +8,8 @@ use bitcoin::hashes::hash160::Hash as Hash160;
 use bitcoin::{PubkeyHash, WPubkeyHash};
 use hex;
 
-// ============================================================================
-// SECTION 4: HTLC SCRIPTS
-// ============================================================================
-// These exercises teach how to create scripts for HTLC (Hash Time Locked Contract)
-// outputs on commitment transactions.
 
-/// Exercise 16: Create offered HTLC script
+/// Exercise 21: Create offered HTLC script
 /// Used when we offer an HTLC to the counterparty (we're sending a payment)
 pub fn create_offered_htlc_script(
     revocation_pubkey: &PublicKey,
@@ -58,7 +53,7 @@ pub fn create_offered_htlc_script(
     script
 }
 
-/// Exercise 17: Create received HTLC script
+/// Exercise 24: Create received HTLC script
 /// Used when we receive an HTLC from the counterparty (they're sending us a payment)
 pub fn create_received_htlc_script(
     revocation_pubkey: &PublicKey,

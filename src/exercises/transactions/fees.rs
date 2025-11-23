@@ -1,11 +1,6 @@
 // ============================================================================
-// SECTION 5: FEE CALCULATIONS
+// FEE CALCULATIONS
 // ============================================================================
-// These exercises teach how to calculate transaction fees for Lightning
-// commitment and HTLC transactions.
-
-/// Exercise 18: Calculate commitment transaction fee
-/// 
 /// Fee calculation: (feerate_per_kw * weight) / 1000
 /// Weight = 724 + (172 * num_untrimmed_htlcs)
 pub fn calculate_commitment_tx_fee(
@@ -26,8 +21,6 @@ pub fn calculate_htlc_success_tx_fee(feerate_per_kw: u64) -> u64 {
     (feerate_per_kw * HTLC_TX_WEIGHT) / 1000
 }
 
-/// Exercise 20: Check if an HTLC amount is below the dust limit
-/// 
 /// An HTLC is considered "dust" if its amount is less than the dust limit
 /// plus the fee required to claim it. Dust HTLCs are trimmed (not included)
 /// in the commitment transaction.

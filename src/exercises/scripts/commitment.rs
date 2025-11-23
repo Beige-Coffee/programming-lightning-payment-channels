@@ -5,11 +5,6 @@ use bitcoin::blockdata::opcodes::all as opcodes;
 use bitcoin::hashes::{Hash, hash160};
 use bitcoin::hashes::hash160::Hash as Hash160;
 
-// ============================================================================
-// SECTION 3 (CONTINUED): COMMITMENT OUTPUT SCRIPTS
-// ============================================================================
-// These exercises teach how to create Bitcoin scripts for commitment
-// transaction outputs.
 
 /// Exercise 14: Create to_remote script (P2WPKH)
 /// This output goes to the counterparty and is immediately spendable by them

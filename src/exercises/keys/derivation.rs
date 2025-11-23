@@ -8,15 +8,6 @@ use std::str::FromStr;
 
 use crate::types::{ChannelKeyManager, KeyFamily, KeysManager};
 
-// ============================================================================
-// SECTION 1: BIP32 KEY DERIVATION & KEYS MANAGER
-// ============================================================================
-// These exercises teach how to derive keys using BIP32 hierarchical
-// deterministic key derivation for Lightning channels.
-//
-// Note: The ChannelKeyManager::to_public_keys() method has been moved to
-// channel_key_manager.rs for better organization.
-
 /// Exercise 1: Create a new KeysManager from a seed
 pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
     let secp_ctx = Secp256k1::new();
@@ -45,16 +36,7 @@ impl KeysManager {
     }
 }
 
-
-impl KeysManager {
-    pub fn get_node_secret(&self) -> SecretKey {
-        self.derive_key(KeyFamily::NodeKey, 0)
-    }
-}
-
 /// Exercise 3: Derive all base keys needed for a channel
-/// These base keys will be used with per-commitment points to create
-/// commitment-specific keys for each channel state
 impl KeysManager {
     pub fn derive_channel_keys(&self, channel_id_index: u32) -> ChannelKeyManager {
         // Use derive_key for each key family

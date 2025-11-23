@@ -167,7 +167,7 @@ Finally, we close the outer IF/ELSE structure.
 </details>
 
 
-# ⚡️ Create HTLC Timeout Transaction
+# ⚡️ Create HTLC Success Transaction
 
 Next up, let's build the **HTLC Success Transaction**! As we just learned, this is the counterpart to the HTLC Timeout Transaction - it enables Bob to claim a received HTLC when he obtains the payment preimage.
 

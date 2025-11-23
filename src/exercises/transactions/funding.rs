@@ -8,21 +8,7 @@ use bitcoin::PublicKey as BitcoinPublicKey;
 
 use crate::scripts::funding::create_funding_script;
 
-// ============================================================================
-// SECTION 2: FUNDING TRANSACTIONS
-// ============================================================================
-// These exercises teach how to create the on-chain funding transaction that
-// opens a Lightning channel. The funding transaction is a standard Bitcoin
-// transaction with one special output - a 2-of-2 multisig that will become
-// the channel capacity.
-
-/// Exercise 6: Create a basic funding transaction with one input and one output
-/// 
-/// This creates the simplest possible funding transaction:
-/// - One input (spending from an existing UTXO)
-/// - One output (the 2-of-2 multisig funding output)
-/// 
-/// In practice, you'd also need a change output, but we'll start simple.
+/// Exercise 6
 pub fn create_funding_transaction(
     input_txid: Txid,
     input_vout: u32,
