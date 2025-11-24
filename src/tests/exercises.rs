@@ -2,13 +2,14 @@ use crate::transactions::create_funding_transaction;
 use crate::types::{ChannelKeyManager, KeyFamily, KeysManager};
 use crate::*;
 use bitcoin::bip32::{DerivationPath, Xpriv};
+use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::hashes::{sha256, Hash, HashEngine};
 use bitcoin::secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
+use bitcoin::sighash::{EcdsaSighashType, SighashCache};
 use bitcoin::Network;
 use bitcoin::PublicKey as BitcoinPublicKey;
 use serial_test::serial;
 use std::str::FromStr;
-use bitcoin::sighash::{EcdsaSighashType, SighashCache};
 
 #[test]
 #[serial]
@@ -233,8 +234,6 @@ fn test_06_create_funding_transaction() {
     );
 }
 
-
-
 #[test]
 fn test_07_sign_transaction_input() {
     let our_seed = [0x01; 32];
@@ -293,7 +292,189 @@ fn test_07_sign_transaction_input() {
         "Signature should end with SIGHASH_ALL (0x01)"
     );
 
-    // Print the transaction hex after it was signed
-    let tx_hex = hex::encode(&tx.serialize());
-    println!("Transaction hex after signing: {}", tx_hex);
+    assert_eq!(
+        signature,
+hex::decode("3044022060fbcd83321e2e409566aeb8032ceee9ac968906151238068f7b0cf9e10b4bd702201f73255bd8bfb895ec3e04fda22500e262d17377923a8783c191a290beac984701").unwrap(),
+        "Signature should match expected value"
+    );
+}
+
+#[test]
+fn test_08_derive_revocation_public_key() {
+    let secp_ctx = Secp256k1::new();
+
+    // Test vector from BOLT 3
+    let revocation_basepoint = PublicKey::from_slice(
+        &hex::decode("036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap(),
+    )
+    .unwrap();
+
+    // Derive the revocation public key
+    let revocation_pubkey =
+        derive_revocation_public_key(&revocation_basepoint, &per_commitment_point, &secp_ctx);
+
+    // Expected revocation public key from BOLT 3 test vectors
+    let expected_revocation_pubkey = PublicKey::from_slice(
+        &hex::decode("02916e326636d19c33f13e8c0c3a03dd157f332f3e99c317c141dd865eb01f8ff0").unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        revocation_pubkey, expected_revocation_pubkey,
+        "Derived revocation public key should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_09_derive_revocation_private_key() {
+    let secp_ctx = Secp256k1::new();
+
+    // Test vector secrets from BOLT 3
+    let revocation_basepoint_secret = SecretKey::from_slice(
+        &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_secret = SecretKey::from_slice(
+        &hex::decode("1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100").unwrap(),
+    )
+    .unwrap();
+
+    let expected_private_key = SecretKey::from_slice(
+        &hex::decode("d09ffff62ddb2297ab000cc85bcb4283fdeb6aa052affbc9dddcf33b61078110").unwrap(),
+    )
+    .unwrap();
+
+    // Derive the revocation private key
+    let revocation_privkey = derive_revocation_private_key(
+        &revocation_basepoint_secret,
+        &per_commitment_secret,
+        &secp_ctx,
+    );
+
+    // The public key derived from the private key should match the directly derived public key
+    assert_eq!(
+        expected_private_key, revocation_privkey,
+        "Public key from private key should match directly derived public key"
+    );
+}
+
+#[test]
+fn test_10_build_commitment_secret() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector: seed of all zeros, I=281474976710655
+    let seed = [0x00; 32];
+    let channel_keys = ChannelKeyManager {
+        funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        htlc_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        commitment_seed: seed,
+        secp_ctx,
+    };
+
+    let secret = channel_keys.build_commitment_secret(281474976710655);
+    let expected =
+        hex::decode("02a40c85b6f28da08dfdbe0926c53fab2de6d28c10301f8f7c4073d5e42e3148").unwrap();
+
+    assert_eq!(
+        secret.as_slice(),
+        expected.as_slice(),
+        "Commitment secret should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_11_derive_per_commitment_point() {
+    let secp_ctx = Secp256k1::new();
+
+    let seed = [0x00; 32];
+    let channel_keys = ChannelKeyManager {
+        funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        htlc_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        commitment_seed: seed,
+        secp_ctx: secp_ctx.clone(),
+    };
+
+    // Derive per-commitment point
+    let per_commitment_point = channel_keys.derive_per_commitment_point(281474976710655);
+
+    // Manually verify it matches the public key of the secret
+    let secret = channel_keys.build_commitment_secret(281474976710655);
+    let secret_key = SecretKey::from_slice(&secret).unwrap();
+    let expected_point = PublicKey::from_secret_key(&secp_ctx, &secret_key);
+
+    assert_eq!(
+        per_commitment_point, expected_point,
+        "Per-commitment point should be the public key of the commitment secret"
+    );
+}
+
+#[test]
+fn test_12_derive_public_key() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector
+    let basepoint = PublicKey::from_slice(
+        &hex::decode("036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap(),
+    )
+    .unwrap();
+
+    // Derive the public key
+    let derived_pubkey = derive_public_key(&basepoint, &per_commitment_point, &secp_ctx);
+
+    // Expected derived public key from BOLT 3 test vectors
+    let expected_pubkey = PublicKey::from_slice(
+        &hex::decode("0235f2dbfaa89b57ec7b055afe29849ef7ddfeb1cefdb9ebdc43f5494984db29e5").unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        derived_pubkey, expected_pubkey,
+        "Derived public key should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_13_derive_private_key() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector
+    let base_secret = SecretKey::from_slice(
+        &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap(),
+    )
+    .unwrap();
+
+    let expected_privkey = SecretKey::from_slice(
+        &hex::decode("cbced912d3b21bf196a766651e436aff192362621ce317704ea2f75d87e7be0f").unwrap(),
+    ).unwrap();
+    
+    // Derive the private key
+    let derived_privkey = derive_private_key(&base_secret, &per_commitment_point, &secp_ctx);
+
+    // Both methods should produce the same public key
+    assert_eq!(
+        expected_privkey, derived_privkey,
+        "Derived private key should match BOLT 3 test vector"
+    );
 }
