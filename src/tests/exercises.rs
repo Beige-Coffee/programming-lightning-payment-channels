@@ -3,6 +3,7 @@ use crate::types::{ChannelKeyManager, KeyFamily, KeysManager};
 use crate::*;
 use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::consensus::encode::serialize_hex;
+use bitcoin::hashes::sha256::Hash as Sha256;
 use bitcoin::hashes::{sha256, Hash, HashEngine};
 use bitcoin::locktime::absolute::LockTime;
 use bitcoin::script::ScriptBuf;
@@ -587,7 +588,7 @@ fn test_17_set_obscured_commitment_number() {
 
     // Upper 24 bits in locktime
     let locktime_value =
-        ((0x20 as u32) << 8 * 3) | ((obscured_commitment_transaction_number & 0xffffffu64) as u32);
+        ((0x20 as u32) << 8 * 3) | ((obscured_commitment_transaction_number & 0xffffff) as u32);
 
     // Lower 24 bits in sequence
     let sequence_value = Sequence(
@@ -631,5 +632,548 @@ fn test_17_set_obscured_commitment_number() {
         expected_sequence_value, sequence_value,
         "Obscured sequence number is incorrect"
     );
+}
 
+#[test]
+fn test_18_create_commitment_transaction_outputs() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector keys - create channel public keys
+    let local_delayed_basepoint = PublicKey::from_slice(
+        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap(),
+    )
+    .unwrap();
+
+    let local_htlc_basepoint = PublicKey::from_slice(
+        &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7").unwrap(),
+    )
+    .unwrap();
+
+    let remote_revocation_basepoint = PublicKey::from_slice(
+        &hex::decode("036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2").unwrap(),
+    )
+    .unwrap();
+
+    let remote_htlc_basepoint = PublicKey::from_slice(
+        &hex::decode("031fa8d91e4dcfe4b5e9f2e6d2fc3c4eca29b993f6b5c8e5d738e2b75e4c18a5e5").unwrap(),
+    )
+    .unwrap();
+
+    let remote_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap(),
+    )
+    .unwrap();
+
+    // Create commitment keys using from_basepoints
+    let commitment_keys = CommitmentKeys::from_basepoints(
+        &per_commitment_point,
+        &local_delayed_basepoint,
+        &local_htlc_basepoint,
+        &remote_revocation_basepoint,
+        &remote_htlc_basepoint,
+        &secp_ctx,
+    );
+
+    let to_self_delay = 144;
+    let dust_limit_satoshis = 546;
+
+    // Test case 1: Values above dust limit
+    let to_local_value = 7_000_000;
+    let to_remote_value = 3_000_000;
+    let fee = 0;
+
+    let outputs = create_commitment_transaction_outputs(
+        to_local_value,
+        to_remote_value,
+        &commitment_keys,
+        &remote_payment_basepoint,
+        to_self_delay,
+        dust_limit_satoshis,
+        fee,
+    );
+
+    // Should have 2 outputs (both above dust limit)
+    assert_eq!(
+        outputs.len(),
+        2,
+        "Should have 2 outputs when both values are above dust"
+    );
+
+    // Verify outputs exist with correct values
+    assert!(
+        outputs.iter().any(|o| o.value == to_remote_value),
+        "Should have to_remote output"
+    );
+    assert!(
+        outputs.iter().any(|o| o.value == to_local_value - fee),
+        "Should have to_local output"
+    );
+
+    // Verify to_local is P2WSH
+    let to_local_output = outputs
+        .iter()
+        .find(|o| o.value == to_local_value - fee)
+        .unwrap();
+    assert!(
+        to_local_output.script.is_p2wsh(),
+        "to_local should be P2WSH"
+    );
+    assert_eq!(
+        to_local_output.cltv_expiry, None,
+        "to_local should have no CLTV expiry"
+    );
+
+    // Test case 2: Values below dust limit
+    let to_local_dust = 500; // Below dust
+    let to_remote_dust = 400; // Below dust
+
+    let outputs_dust = create_commitment_transaction_outputs(
+        to_local_dust,
+        to_remote_dust,
+        &commitment_keys,
+        &remote_payment_basepoint,
+        to_self_delay,
+        dust_limit_satoshis,
+        fee,
+    );
+
+    // Should have 0 outputs (both below dust limit)
+    assert_eq!(
+        outputs_dust.len(),
+        0,
+        "Should have no outputs when both values are below dust limit"
+    );
+}
+
+#[test]
+fn test_19_sort_outputs() {
+    // Create scripts with different byte values for sorting
+    let script_a = ScriptBuf::from_bytes(vec![0x00, 0x14, 0xaa, 0xaa]);
+    let script_b = ScriptBuf::from_bytes(vec![0x00, 0x14, 0xbb, 0xbb]);
+    let script_c = ScriptBuf::from_bytes(vec![0x00, 0x14, 0xcc, 0xcc]);
+
+    // Create outputs in unsorted order
+    let mut outputs = vec![
+        OutputWithMetadata {
+            value: 3000,
+            script: script_c.clone(),
+            cltv_expiry: None,
+        },
+        OutputWithMetadata {
+            value: 1000,
+            script: script_b.clone(),
+            cltv_expiry: None,
+        },
+        OutputWithMetadata {
+            value: 2000,
+            script: script_a.clone(),
+            cltv_expiry: None,
+        },
+    ];
+
+    // Sort outputs
+    sort_outputs(&mut outputs);
+
+    // Should be sorted by value: 1000, 2000, 3000
+    assert_eq!(
+        outputs[0].value, 1000,
+        "First output should have lowest value"
+    );
+    assert_eq!(
+        outputs[1].value, 2000,
+        "Second output should have middle value"
+    );
+    assert_eq!(
+        outputs[2].value, 3000,
+        "Third output should have highest value"
+    );
+
+    // Test same value, different scripts
+    let mut outputs_same_value = vec![
+        OutputWithMetadata {
+            value: 1000,
+            script: script_c.clone(),
+            cltv_expiry: None,
+        },
+        OutputWithMetadata {
+            value: 1000,
+            script: script_a.clone(),
+            cltv_expiry: None,
+        },
+        OutputWithMetadata {
+            value: 1000,
+            script: script_b.clone(),
+            cltv_expiry: None,
+        },
+    ];
+
+    sort_outputs(&mut outputs_same_value);
+
+    // Should be sorted by script: aa, bb, cc
+    assert_eq!(
+        outputs_same_value[0].script, script_a,
+        "First should have script_a"
+    );
+    assert_eq!(
+        outputs_same_value[1].script, script_b,
+        "Second should have script_b"
+    );
+    assert_eq!(
+        outputs_same_value[2].script, script_c,
+        "Third should have script_c"
+    );
+
+    // Test same value and script, different CLTV expiry
+    let mut outputs_same_script = vec![
+        OutputWithMetadata {
+            value: 1000,
+            script: script_a.clone(),
+            cltv_expiry: Some(550),
+        },
+        OutputWithMetadata {
+            value: 1000,
+            script: script_a.clone(),
+            cltv_expiry: Some(500),
+        },
+        OutputWithMetadata {
+            value: 1000,
+            script: script_a.clone(),
+            cltv_expiry: Some(525),
+        },
+    ];
+
+    sort_outputs(&mut outputs_same_script);
+
+    // Should be sorted by CLTV expiry: 500, 525, 550
+    assert_eq!(
+        outputs_same_script[0].cltv_expiry,
+        Some(500),
+        "First should have lowest CLTV"
+    );
+    assert_eq!(
+        outputs_same_script[1].cltv_expiry,
+        Some(525),
+        "Second should have middle CLTV"
+    );
+    assert_eq!(
+        outputs_same_script[2].cltv_expiry,
+        Some(550),
+        "Third should have highest CLTV"
+    );
+}
+
+#[test]
+fn test_20_create_commitment_transaction() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector funding outpoint
+    let funding_txid =
+        Txid::from_str("8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be").unwrap();
+    let funding_outpoint = OutPoint {
+        txid: funding_txid,
+        vout: 0,
+    };
+
+    // BOLT 3 test vector keys
+    let local_delayed_basepoint = PublicKey::from_slice(
+        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap(),
+    )
+    .unwrap();
+
+    let local_htlc_basepoint = PublicKey::from_slice(
+        &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7").unwrap(),
+    )
+    .unwrap();
+
+    let remote_revocation_basepoint = PublicKey::from_slice(
+        &hex::decode("036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2").unwrap(),
+    )
+    .unwrap();
+
+    let remote_htlc_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    let local_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap(),
+    )
+    .unwrap();
+
+    let remote_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap(),
+    )
+    .unwrap();
+
+    // Create commitment keys
+    let commitment_keys = CommitmentKeys::from_basepoints(
+        &per_commitment_point,
+        &local_delayed_basepoint,
+        &local_htlc_basepoint,
+        &remote_revocation_basepoint,
+        &remote_htlc_basepoint,
+        &secp_ctx,
+    );
+
+    // BOLT 3 test vector values
+    let to_local_value = 7_000_000;
+    let to_remote_value = 3_000_000;
+    let commitment_number = 42;
+    let to_self_delay = 144;
+    let dust_limit_satoshis = 546;
+    let feerate_per_kw = 0; // Use 0 fee for simpler verification
+
+    // Test without HTLCs
+    let tx = create_commitment_transaction(
+        funding_outpoint,
+        to_local_value,
+        to_remote_value,
+        &commitment_keys,
+        &local_payment_basepoint,
+        &remote_payment_basepoint,
+        commitment_number,
+        to_self_delay,
+        dust_limit_satoshis,
+        feerate_per_kw,
+        &[], // no offered HTLCs
+        &[], // no received HTLCs
+    );
+
+    // Verify transaction structure
+    assert_eq!(tx.version, Version::TWO, "Version should be 2");
+    assert_eq!(tx.input.len(), 1, "Should have 1 input");
+    assert_eq!(
+        tx.output.len(),
+        2,
+        "Should have 2 outputs (to_local and to_remote)"
+    );
+
+    // Verify input references funding outpoint
+    assert_eq!(
+        tx.input[0].previous_output.txid, funding_txid,
+        "Input should reference funding txid"
+    );
+    assert_eq!(
+        tx.input[0].previous_output.vout, 0,
+        "Input should reference vout 0"
+    );
+
+    // Verify obscured commitment number is set
+    let locktime_value = tx.lock_time.to_consensus_u32();
+    let sequence_value = tx.input[0].sequence.0;
+    assert_eq!(
+        locktime_value >> 24,
+        0x20,
+        "Locktime upper byte should be 0x20"
+    );
+    assert_eq!(
+        sequence_value >> 24,
+        0x80,
+        "Sequence upper byte should be 0x80"
+    );
+
+    // Verify outputs are sorted by value (BIP69)
+    assert!(
+        tx.output[0].value.to_sat() <= tx.output[1].value.to_sat(),
+        "Outputs should be sorted by value"
+    );
+
+    // Test with HTLCs
+    let offered_htlcs = vec![HTLCOutput {
+        amount_sat: 2_000_000,
+        payment_hash: Sha256::hash(&[0x02; 32]).to_byte_array(),
+        cltv_expiry: 502,
+    }];
+
+    let received_htlcs = vec![HTLCOutput {
+        amount_sat: 1_000_000,
+        payment_hash: Sha256::hash(&[0x00; 32]).to_byte_array(),
+        cltv_expiry: 500,
+    }];
+
+    let tx_with_htlcs = create_commitment_transaction(
+        funding_outpoint,
+        to_local_value,
+        to_remote_value,
+        &commitment_keys,
+        &local_payment_basepoint,
+        &remote_payment_basepoint,
+        commitment_number,
+        to_self_delay,
+        dust_limit_satoshis,
+        feerate_per_kw,
+        &offered_htlcs,
+        &received_htlcs,
+    );
+
+    // Should have more outputs with HTLCs (2 base + 2 HTLCs = 4)
+    assert_eq!(
+        tx_with_htlcs.output.len(),
+        4,
+        "Should have 4 outputs with HTLCs"
+    );
+
+    // Verify outputs are still sorted
+    for i in 0..tx_with_htlcs.output.len() - 1 {
+        assert!(
+            tx_with_htlcs.output[i].value <= tx_with_htlcs.output[i + 1].value,
+            "Outputs should be sorted by value"
+        );
+    }
+}
+
+#[test]
+fn test_21_finalize_holder_commitment() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 test vector secrets (remove trailing 01 from hex)
+    let local_funding_privkey = SecretKey::from_slice(
+        &hex::decode("30ff4956bbdd3222d44cc5e8a1261dab1e07957bdac5ae88fe3261ef321f3749").unwrap()
+    ).unwrap();
+
+    // BOLT 3 basepoint secrets
+    let local_payment_basepoint_secret = SecretKey::from_slice(
+        &hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap()
+    ).unwrap();
+
+    let local_delayed_payment_basepoint_secret = SecretKey::from_slice(
+        &hex::decode("3333333333333333333333333333333333333333333333333333333333333333").unwrap()
+    ).unwrap();
+
+    let local_htlc_basepoint_secret = SecretKey::from_slice(
+        &hex::decode("1111111111111111111111111111111111111111111111111111111111111111").unwrap()
+    ).unwrap();
+
+    let local_revocation_basepoint_secret = SecretKey::from_slice(
+        &hex::decode("2222222222222222222222222222222222222222222222222222222222222222").unwrap()
+    ).unwrap();
+
+    // BOLT 3 commitment seed (all zeros)
+    let commitment_seed = [0x00u8; 32];
+
+    // Build ChannelKeyManager
+    let channel_keys = ChannelKeyManager {
+        funding_key: local_funding_privkey,
+        revocation_base_key: local_revocation_basepoint_secret,
+        payment_base_key: local_payment_basepoint_secret,
+        delayed_payment_base_key: local_delayed_payment_basepoint_secret,
+        htlc_base_key: local_htlc_basepoint_secret,
+        commitment_seed,
+        secp_ctx: secp_ctx.clone(),
+    };
+
+    // BOLT 3 funding pubkeys
+    let local_funding_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
+        &hex::decode("023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb").unwrap()
+    ).unwrap());
+
+    let remote_funding_pubkey = BitcoinPublicKey::new(PublicKey::from_slice(
+        &hex::decode("030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c1").unwrap()
+    ).unwrap());
+
+    // BOLT 3 payment basepoints (for obscured commitment number)
+    let local_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap()
+    ).unwrap();
+
+    let remote_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap()
+    ).unwrap();
+
+    // Funding outpoint from BOLT 3
+    let funding_txid = Txid::from_str("8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be").unwrap();
+    let funding_outpoint = OutPoint {
+        txid: funding_txid,
+        vout: 0,
+    };
+    let funding_amount = 10_000_000;
+
+    // Create funding script
+    let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
+
+    // BOLT 3 commitment number is 42
+    let bolt3_commitment_number = 42;
+    let commitment_number = INITIAL_COMMITMENT_NUMBER - bolt3_commitment_number;
+
+    // Derive per_commitment_point for this commitment
+    let per_commitment_point = channel_keys.derive_per_commitment_point(commitment_number);
+
+    // Use exact derived keys from BOLT 3 test vectors
+    let commitment_keys = CommitmentKeys::from_keys(
+        per_commitment_point,
+        PublicKey::from_slice(
+            &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap()
+        ).unwrap(), // revocation_key
+        PublicKey::from_slice(
+            &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap()
+        ).unwrap(), // local_delayed_payment_key
+        PublicKey::from_slice(
+            &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7").unwrap()
+        ).unwrap(), // local_htlc_key
+        PublicKey::from_slice(
+            &hex::decode("0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b").unwrap()
+        ).unwrap(), // remote_htlc_key
+    );
+
+    // BOLT 3 test vector values
+    let to_local_msat = 7_000_000_000;
+    let to_remote_msat = 3_000_000_000;
+    let to_local_sat = to_local_msat / 1000;
+    let to_remote_sat = to_remote_msat / 1000;
+    let to_self_delay = 144;
+    let dust_limit_satoshis = 546;
+    let feerate_per_kw = 15000;
+
+    // Create unsigned commitment transaction
+    let unsigned_tx = create_commitment_transaction(
+        funding_outpoint,
+        to_local_sat,
+        to_remote_sat,
+        &commitment_keys,
+        &local_payment_basepoint,
+        &remote_payment_basepoint,
+        commitment_number,
+        to_self_delay,
+        dust_limit_satoshis,
+        feerate_per_kw,
+        &[],
+        &[],
+    );
+
+    // BOLT 3 expected remote signature (with SIGHASH_ALL appended)
+    let remote_signature = hex::decode(
+        "3045022100c3127b33dcc741dd6b05b1e63cbd1a9a7d816f37af9b6756fa2376b056f032370220408b96279808fe57eb7e463710804cdf4f108388bc5cf722d8c848d2c7f9f3b001"
+    ).unwrap();
+
+    // Finalize the holder commitment
+    let signed_tx = finalize_holder_commitment(
+        channel_keys,
+        unsigned_tx,
+        0,
+        &funding_script,
+        funding_amount,
+        remote_signature,
+    );
+
+    // BOLT 3 expected complete transaction
+    let expected_tx_hex = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014cc1b07838e387deacd0e5232e1e8b49f4c29e48454a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220616210b2cc4d3afb601013c373bbd8aac54febd9f15400379a8cb65ce7deca60022034236c010991beb7ff770510561ae8dc885b8d38d1947248c38f2ae05564714201483045022100c3127b33dcc741dd6b05b1e63cbd1a9a7d816f37af9b6756fa2376b056f032370220408b96279808fe57eb7e463710804cdf4f108388bc5cf722d8c848d2c7f9f3b001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220";
+
+    // Serialize and compare
+    let actual_tx_hex = hex::encode(bitcoin::consensus::serialize(&signed_tx));
+
+    assert_eq!(
+        actual_tx_hex,
+        expected_tx_hex,
+        "Finalized commitment transaction should match BOLT 3 test vector"
+    );
 }

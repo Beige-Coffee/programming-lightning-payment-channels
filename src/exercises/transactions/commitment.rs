@@ -64,7 +64,7 @@ pub fn set_obscured_commitment_number(
 }
 
 /// Exercise 18 & 28: Create commitment transaction outputs (using pre-derived keys)
-fn create_commitment_transaction_outputs(
+pub fn create_commitment_transaction_outputs(
     to_local_value: u64,
     to_remote_value: u64,
     commitment_keys: &CommitmentKeys,
@@ -105,7 +105,7 @@ fn create_commitment_transaction_outputs(
 
 /// Exercise 27: Create HTLC outputs (using pre-derived keys)
 /// Creates outputs for all offered and received HTLCs using the commitment keys
-fn create_htlc_outputs(
+pub fn create_htlc_outputs(
     commitment_keys: &CommitmentKeys,
     offered_htlcs: &[HTLCOutput],
     received_htlcs: &[HTLCOutput],
