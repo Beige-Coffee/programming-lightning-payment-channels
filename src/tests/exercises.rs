@@ -4,15 +4,19 @@ use crate::*;
 use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::hashes::{sha256, Hash, HashEngine};
+use bitcoin::locktime::absolute::LockTime;
+use bitcoin::script::ScriptBuf;
 use bitcoin::secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use bitcoin::sighash::{EcdsaSighashType, SighashCache};
+use bitcoin::transaction::Version;
 use bitcoin::Network;
 use bitcoin::PublicKey as BitcoinPublicKey;
+use bitcoin::Txid;
+use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use serial_test::serial;
 use std::str::FromStr;
 
 #[test]
-#[serial]
 fn test_01_new_keys_manager() {
     let seed = [0x01; 32];
     let bitcoin_network = Network::Bitcoin;
@@ -33,7 +37,6 @@ fn test_01_new_keys_manager() {
 }
 
 #[test]
-#[serial]
 fn test_02_derive_key() {
     let seed = [0x01; 32];
     let bitcoin_network = Network::Bitcoin;
@@ -61,7 +64,6 @@ fn test_02_derive_key() {
 }
 
 #[test]
-#[serial]
 fn test_03_derive_channel_keys() {
     let seed = [0x01; 32];
     let bitcoin_network = Network::Bitcoin;
@@ -114,7 +116,6 @@ fn test_03_derive_channel_keys() {
 }
 
 #[test]
-#[serial]
 fn test_04_to_public_keys() {
     let seed = [0x01; 32];
     let bitcoin_network = Network::Bitcoin;
@@ -467,8 +468,9 @@ fn test_13_derive_private_key() {
 
     let expected_privkey = SecretKey::from_slice(
         &hex::decode("cbced912d3b21bf196a766651e436aff192362621ce317704ea2f75d87e7be0f").unwrap(),
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Derive the private key
     let derived_privkey = derive_private_key(&base_secret, &per_commitment_point, &secp_ctx);
 
@@ -477,4 +479,157 @@ fn test_13_derive_private_key() {
         expected_privkey, derived_privkey,
         "Derived private key should match BOLT 3 test vector"
     );
+}
+
+#[test]
+fn test_14_create_to_remote_script() {
+    // BOLT 3 test vector - remote public key
+    let remote_pubkey = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    // Create to_remote script
+    let to_remote_script = create_to_remote_script(&remote_pubkey);
+
+    // Expected P2WPKH script from BOLT 3 test vectors
+    // Format: OP_0 <20-byte-pubkey-hash>
+    let expected_script = hex::decode("0014cc1b07838e387deacd0e5232e1e8b49f4c29e484").unwrap();
+
+    assert_eq!(
+        to_remote_script.as_bytes(),
+        expected_script.as_slice(),
+        "to_remote script should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_15_create_to_local_script() {
+    // BOLT 3 test vectors
+    let revocation_pubkey = PublicKey::from_slice(
+        &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap(),
+    )
+    .unwrap();
+
+    let local_delayedpubkey = PublicKey::from_slice(
+        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap(),
+    )
+    .unwrap();
+
+    let to_self_delay = 144;
+
+    // Create to_local script
+    let to_local_script =
+        create_to_local_script(&revocation_pubkey, &local_delayedpubkey, to_self_delay);
+
+    // Expected to_local script from BOLT 3 test vectors
+    let expected_script = hex::decode(
+        "63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac"
+    ).unwrap();
+
+    assert_eq!(
+        to_local_script.as_bytes(),
+        expected_script.as_slice(),
+        "to_local script should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_16_get_commitment_transaction_number_obscure_factor() {
+    // BOLT 3 test vectors - payment basepoints
+    let initiator_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap(),
+    )
+    .unwrap();
+
+    let receiver_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    let expected_obscured_factor = 0x2bb038521914;
+
+    // Calculate obscure factor (local is opener/initiator in BOLT 3 test vectors)
+    let actual_obscure_factor = get_commitment_transaction_number_obscure_factor(
+        &initiator_payment_basepoint,
+        &receiver_payment_basepoint,
+    );
+
+    assert_eq!(
+        actual_obscure_factor, expected_obscured_factor,
+        "Obscure number should match BOLT 3 test vector calculation"
+    );
+}
+
+#[test]
+fn test_17_set_obscured_commitment_number() {
+    // BOLT 3 test vectors - payment basepoints
+    let initiator_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap(),
+    )
+    .unwrap();
+
+    let receiver_payment_basepoint = PublicKey::from_slice(
+        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
+    )
+    .unwrap();
+
+    let commitment_number = 42;
+
+    let commitment_transaction_number_obscure_factor =
+        get_commitment_transaction_number_obscure_factor(
+            &initiator_payment_basepoint,
+            &receiver_payment_basepoint,
+        );
+
+    let obscured_commitment_transaction_number = commitment_transaction_number_obscure_factor
+        ^ (INITIAL_COMMITMENT_NUMBER - commitment_number);
+
+    // Upper 24 bits in locktime
+    let locktime_value =
+        ((0x20 as u32) << 8 * 3) | ((obscured_commitment_transaction_number & 0xffffffu64) as u32);
+
+    // Lower 24 bits in sequence
+    let sequence_value = Sequence(
+        ((0x80 as u32) << 8 * 3) | ((obscured_commitment_transaction_number >> 3 * 8) as u32),
+    );
+
+    // Create a simple transaction with one input
+    let mut tx = Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint {
+                txid: Txid::all_zeros(),
+                vout: 0,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::ZERO,
+            witness: Witness::new(),
+        }],
+        output: vec![],
+    };
+
+    // Set obscured commitment number
+    set_obscured_commitment_number(
+        &mut tx,
+        commitment_number,
+        &initiator_payment_basepoint,
+        &receiver_payment_basepoint,
+    );
+
+    // Extract values from transaction
+    let actual_locktime_value = tx.lock_time.to_consensus_u32();
+    let expected_sequence_value = tx.input[0].sequence;
+
+    assert_eq!(
+        actual_locktime_value, locktime_value,
+        "Obscured locktime number is incorrect"
+    );
+
+    assert_eq!(
+        expected_sequence_value, sequence_value,
+        "Obscured sequence number is incorrect"
+    );
+
 }
