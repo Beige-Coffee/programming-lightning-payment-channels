@@ -165,6 +165,7 @@ pub fn finalize_htlc_success(
         &remote_htlc_signature[..],
         &local_htlc_signature[..],
         &payment_preimage[..],
+        htlc_script.as_bytes(),
     ]);
 
     let mut signed_tx = tx;
