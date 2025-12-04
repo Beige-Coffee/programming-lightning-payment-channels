@@ -271,7 +271,7 @@ The below two docs should be very helpful in this exercise.
 1. You can define a derivation path using the [`from_str` method available on the `DerivationPath` struct](https://docs.rs/bitcoin/0.32.0/bitcoin/bip32/struct.DerivationPath.html) in Rust Bitcoin.
 2. You can derive a new private key using the [`derive_priv` method available on the `Xpriv` struct](https://docs.rs/bitcoin/0.32.0/bitcoin/bip32/struct.Xpriv.html#method.derive_priv).
 
-Note that `derive_priv` returns an extended private key (`Xpriv`), but the function that we're completing in this exercise returns a `SecretKey`. To  extract the secret key from the extended private key, you can use the below notation.
+> Note that `derive_priv` returns an extended private key (`Xpriv`), but the function that we're completing in this exercise returns a `SecretKey`. To  extract the secret key from the extended private key, you can use the below notation.
 
 ```rust
 extended_priv_key.private_key
@@ -409,7 +409,7 @@ For example, to derive the `funding_key`:
 let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
 ```
 
-**Note:** The `commitment_seed` field expects a `[u8; 32]`, not a `SecretKey`. You can convert a `SecretKey` to its raw bytes using the `secret_bytes()` method:
+> **Note:** The `commitment_seed` field expects a `[u8; 32]`, not a `SecretKey`. You can convert a `SecretKey` to its raw bytes using the `secret_bytes()` method:
 ```rust
 let commitment_seed = self.derive_key(KeyFamily::CommitmentSeed, channel_id_index).secret_bytes();
 ```
