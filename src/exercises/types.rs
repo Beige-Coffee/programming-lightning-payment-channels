@@ -45,10 +45,10 @@ pub struct KeysManager {
 /// to better reflect its combined responsibilities in this educational implementation.
 pub struct ChannelKeyManager {
     pub funding_key: SecretKey,
-    pub revocation_base_key: SecretKey,
-    pub payment_base_key: SecretKey,
-    pub delayed_payment_base_key: SecretKey,
-    pub htlc_base_key: SecretKey,
+    pub revocation_basepoint_secret: SecretKey,
+    pub payment_basepoint_secret: SecretKey,
+    pub delayed_payment_basepoint_secret: SecretKey,
+    pub htlc_basepoint_secret: SecretKey,
     pub commitment_seed: [u8; 32],
     pub secp_ctx: Secp256k1<All>,
 }

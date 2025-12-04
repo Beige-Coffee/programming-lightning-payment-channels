@@ -41,20 +41,20 @@ impl KeysManager {
     pub fn derive_channel_keys(&self, channel_id_index: u32) -> ChannelKeyManager {
         // Use derive_key for each key family
         let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
-        let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
-        let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
-        let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_id_index);
-        let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
+        let revocation_basepoint_secret = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
+        let payment_basepoint_secret = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
+        let delayed_payment_basepoint_secret = self.derive_key(KeyFamily::DelayBase, channel_id_index);
+        let htlc_basepoint_secret = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
         let commitment_seed = self
             .derive_key(KeyFamily::CommitmentSeed, channel_id_index)
             .secret_bytes();
 
         ChannelKeyManager {
             funding_key,
-            revocation_base_key,
-            payment_base_key,
-            delayed_payment_base_key,
-            htlc_base_key,
+            revocation_basepoint_secret,
+            payment_basepoint_secret,
+            delayed_payment_basepoint_secret,
+            htlc_basepoint_secret,
             commitment_seed,
             secp_ctx: self.secp_ctx.clone(),
         }
