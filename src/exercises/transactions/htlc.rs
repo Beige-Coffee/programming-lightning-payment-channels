@@ -70,7 +70,7 @@ pub fn finalize_htlc_timeout(
     remote_htlc_signature: Vec<u8>,
 ) -> Transaction {
 
-    let local_htlc_privkey = keys_manager.htlc_base_key;
+    let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     let local_htlc_signature = keys_manager.sign_transaction_input(
         &tx,
@@ -150,7 +150,7 @@ pub fn finalize_htlc_success(
     payment_preimage: [u8; 32],
 ) -> Transaction {
 
-    let local_htlc_privkey = keys_manager.htlc_base_key;
+    let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     let local_htlc_signature = keys_manager.sign_transaction_input(
         &tx,

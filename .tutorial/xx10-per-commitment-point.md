@@ -303,7 +303,7 @@ If you're busy (or are intimidated by the BIP - they can be scary), here is the 
 
 ### ⚡️ Derive Private Keys
 
-For this exercise, we'll implement `derive_private_key`, a function that takes a `base_secret` (like our `delayed_payment_base_key`), a `per_commitment_point`, and returns the derived private key we can use to sign for that specific commitment.
+For this exercise, we'll implement `derive_private_key`, a function that takes a `base_secret` (like our `delayed_payment_basepoint_secret`), a `per_commitment_point`, and returns the derived private key we can use to sign for that specific commitment.
 
 ```rust
 pub fn derive_private_key(

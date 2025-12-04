@@ -47,14 +47,14 @@ impl ChannelKeyManager {
             funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
             revocation_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
-                &self.revocation_base_key,
+                &self.revocation_basepoint_secret,
             ),
-            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_basepoint_secret),
             delayed_payment_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
-                &self.delayed_payment_base_key,
+                &self.delayed_payment_basepoint_secret,
             ),
-            htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
+            htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_basepoint_secret),
         }
     }
 ```
@@ -76,7 +76,7 @@ Next, we'll convert the revocation base key to a public key. Same pattern as bef
 ```rust
 revocation_basepoint: PublicKey::from_secret_key(
     &self.secp_ctx,
-    &self.revocation_base_key,
+    &self.revocation_basepoint_secret,
 ),
 ```
 
@@ -87,7 +87,7 @@ revocation_basepoint: PublicKey::from_secret_key(
 
 Now let's derive the payment point from our payment base key.
 ```rust
-payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_basepoint_secret),
 ```
 
 </details>
@@ -99,7 +99,7 @@ Convert the delayed payment base key to its public counterpart.
 ```rust
 delayed_payment_basepoint: PublicKey::from_secret_key(
     &self.secp_ctx,
-    &self.delayed_payment_base_key,
+    &self.delayed_payment_basepoint_secret,
 ),
 ```
 
@@ -110,7 +110,7 @@ delayed_payment_basepoint: PublicKey::from_secret_key(
 
 Finally, let's convert the HTLC base key to a public key.
 ```rust
-htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
+htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_basepoint_secret),
 ```
 
 </details>
@@ -124,14 +124,14 @@ ChannelPublicKeys {
     funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
     revocation_basepoint: PublicKey::from_secret_key(
         &self.secp_ctx,
-        &self.revocation_base_key,
+        &self.revocation_basepoint_secret,
     ),
-    payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+    payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_basepoint_secret),
     delayed_payment_basepoint: PublicKey::from_secret_key(
         &self.secp_ctx,
-        &self.delayed_payment_base_key,
+        &self.delayed_payment_basepoint_secret,
     ),
-    htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
+    htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_basepoint_secret),
 }
 ```
 </details>

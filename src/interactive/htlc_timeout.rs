@@ -41,7 +41,7 @@ pub async fn run(commitment_txid: String) {
     let second_commitment_point = our_channel_keys_manager.derive_per_commitment_point(commitment_number);
     
     // Derive local HTLC secret key (for signing)
-    let local_htlc_basepoint_secret = our_channel_keys_manager.htlc_base_key;
+    let local_htlc_basepoint_secret = our_channel_keys_manager.htlc_basepoint_secret;
     let local_htlc_secret = derive_private_key(
                                 &local_htlc_basepoint_secret,
                                 &second_commitment_point,
@@ -56,7 +56,7 @@ pub async fn run(commitment_txid: String) {
     let remote_funding_privkey = remote_channel_keys_manager.funding_key;
     let remote_funding_pubkey = remote_channel_public_keys.funding_pubkey;
     
-    let remote_htlc_basepoint_secret = remote_channel_keys_manager.htlc_base_key;
+    let remote_htlc_basepoint_secret = remote_channel_keys_manager.htlc_basepoint_secret;
     let remote_htlc_secret = derive_private_key(
                                 &remote_htlc_basepoint_secret,
                                 &second_commitment_point,

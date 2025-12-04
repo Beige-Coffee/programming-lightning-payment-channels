@@ -91,7 +91,7 @@ pub fn build_commitment_from_channel_keys(
     // STEP 2: Build transaction with derived keys
     let local_payment_basepoint = PublicKey::from_secret_key(
         &local_channel_keys.secp_ctx,
-        &local_channel_keys.payment_base_key,
+        &local_channel_keys.payment_basepoint_secret,
     );
 
     build_complete_commitment_transaction(
@@ -117,10 +117,10 @@ pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transacti
     // Build ChannelKeyManager for key derivation
     let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
-        revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
-        payment_base_key: test_vector.local_payment_basepoint_secret.clone(),
-        delayed_payment_base_key: test_vector.local_delayed_payment_basepoint_secret.clone(),
-        htlc_base_key: test_vector.local_htlc_basepoint_secret.clone(),
+        revocation_basepoint_secret: test_vector.local_revocation_basepoint_secret.clone(),
+        payment_basepoint_secret: test_vector.local_payment_basepoint_secret.clone(),
+        delayed_payment_basepoint_secret: test_vector.local_delayed_payment_basepoint_secret.clone(),
+        htlc_basepoint_secret: test_vector.local_htlc_basepoint_secret.clone(),
         commitment_seed: test_vector.commitment_seed,
         secp_ctx: secp.clone(),
     };
@@ -183,10 +183,10 @@ pub fn build_bolt3_commitment_with_htlcs(
 
     let channel_keys = ChannelKeyManager {
         funding_key: test_vector.local_funding_privkey.clone(),
-        revocation_base_key: test_vector.local_revocation_basepoint_secret.clone(),
-        payment_base_key: test_vector.local_payment_basepoint_secret.clone(),
-        delayed_payment_base_key: test_vector.local_delayed_payment_basepoint_secret.clone(),
-        htlc_base_key: test_vector.local_htlc_basepoint_secret.clone(),
+        revocation_basepoint_secret: test_vector.local_revocation_basepoint_secret.clone(),
+        payment_basepoint_secret: test_vector.local_payment_basepoint_secret.clone(),
+        delayed_payment_basepoint_secret: test_vector.local_delayed_payment_basepoint_secret.clone(),
+        htlc_basepoint_secret: test_vector.local_htlc_basepoint_secret.clone(),
         commitment_seed: test_vector.commitment_seed,
         secp_ctx: secp,
     };

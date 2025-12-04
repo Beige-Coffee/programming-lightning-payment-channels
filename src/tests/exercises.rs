@@ -91,22 +91,22 @@ fn test_03_derive_channel_keys() {
         "Funding key should match"
     );
     assert_eq!(
-        channel_keys.revocation_base_key.secret_bytes(),
+        channel_keys.revocation_basepoint_secret.secret_bytes(),
         expected_revocation_key.secret_bytes(),
         "Revocation base key should match"
     );
     assert_eq!(
-        channel_keys.payment_base_key.secret_bytes(),
+        channel_keys.payment_basepoint_secret.secret_bytes(),
         expected_payment_key.secret_bytes(),
         "Payment base key should match"
     );
     assert_eq!(
-        channel_keys.delayed_payment_base_key.secret_bytes(),
+        channel_keys.delayed_payment_basepoint_secret.secret_bytes(),
         expected_delayed_key.secret_bytes(),
         "Delayed payment base key should match"
     );
     assert_eq!(
-        channel_keys.htlc_base_key.secret_bytes(),
+        channel_keys.htlc_basepoint_secret.secret_bytes(),
         expected_htlc_key.secret_bytes(),
         "HTLC base key should match"
     );
@@ -133,15 +133,15 @@ fn test_04_to_public_keys() {
     let expected_funding_pubkey =
         PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.funding_key);
     let expected_revocation_basepoint =
-        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.revocation_base_key);
+        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.revocation_basepoint_secret);
     let expected_payment_basepoint =
-        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.payment_base_key);
+        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.payment_basepoint_secret);
     let expected_delayed_payment_basepoint = PublicKey::from_secret_key(
         &channel_keys.secp_ctx,
-        &channel_keys.delayed_payment_base_key,
+        &channel_keys.delayed_payment_basepoint_secret,
     );
     let expected_htlc_basepoint =
-        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.htlc_base_key);
+        PublicKey::from_secret_key(&channel_keys.secp_ctx, &channel_keys.htlc_basepoint_secret);
 
     // Verify all public keys match
     assert_eq!(
@@ -374,10 +374,10 @@ fn test_10_build_commitment_secret() {
     let seed = [0x00; 32];
     let channel_keys = ChannelKeyManager {
         funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        htlc_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        htlc_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
         commitment_seed: seed,
         secp_ctx,
     };
@@ -400,10 +400,10 @@ fn test_11_derive_per_commitment_point() {
     let seed = [0x00; 32];
     let channel_keys = ChannelKeyManager {
         funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        htlc_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        htlc_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
         commitment_seed: seed,
         secp_ctx: secp_ctx.clone(),
     };
@@ -1066,10 +1066,10 @@ fn test_21_finalize_holder_commitment() {
     // Build ChannelKeyManager
     let channel_keys = ChannelKeyManager {
         funding_key: local_funding_privkey,
-        revocation_base_key: local_revocation_basepoint_secret,
-        payment_base_key: local_payment_basepoint_secret,
-        delayed_payment_base_key: local_delayed_payment_basepoint_secret,
-        htlc_base_key: local_htlc_basepoint_secret,
+        revocation_basepoint_secret: local_revocation_basepoint_secret,
+        payment_basepoint_secret: local_payment_basepoint_secret,
+        delayed_payment_basepoint_secret: local_delayed_payment_basepoint_secret,
+        htlc_basepoint_secret: local_htlc_basepoint_secret,
         commitment_seed,
         secp_ctx: secp_ctx.clone(),
     };
@@ -1342,10 +1342,10 @@ fn test_24_finalize_htlc_timeout() {
     // Build ChannelKeyManager with the BOLT 3 derived HTLC key
     let channel_keys = ChannelKeyManager {
         funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        htlc_base_key: local_htlc_privkey, // Use the BOLT 3 derived key directly
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        htlc_basepoint_secret: local_htlc_privkey, // Use the BOLT 3 derived key directly
         commitment_seed: [0x01; 32], // dummy
         secp_ctx: secp_ctx.clone(),
     };
@@ -1589,10 +1589,10 @@ fn test_27_finalize_htlc_success() {
     // Build ChannelKeyManager with the BOLT 3 derived HTLC key
     let channel_keys = ChannelKeyManager {
         funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
-        htlc_base_key: local_htlc_privkey,
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        htlc_basepoint_secret: local_htlc_privkey,
         commitment_seed: [0x01; 32], // dummy
         secp_ctx: secp_ctx.clone(),
     };
@@ -1849,10 +1849,10 @@ fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
     // Build ChannelKeyManager with BOLT 3 funding key
     let channel_keys = ChannelKeyManager {
         funding_key: local_funding_privkey,
-        revocation_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        delayed_payment_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
-        htlc_base_key: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
+        htlc_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(),
         commitment_seed: [0x00; 32],
         secp_ctx: secp_ctx.clone(),
     };

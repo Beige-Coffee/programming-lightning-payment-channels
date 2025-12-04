@@ -329,7 +329,7 @@ pub fn finalize_htlc_success(
     payment_preimage: [u8; 32],
 ) -> Transaction {
 
-    let local_htlc_privkey = keys_manager.htlc_base_key;
+    let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     let local_htlc_signature = keys_manager.sign_transaction_input(
         &tx,
@@ -364,10 +364,10 @@ Since we'll need to generate our own signature, using the **HTLC Basepoint Secre
 ```rust
 pub struct ChannelKeyManager {
     pub funding_key: SecretKey,
-    pub revocation_base_key: SecretKey,
-    pub payment_base_key: SecretKey,
-    pub delayed_payment_base_key: SecretKey,
-    pub htlc_base_key: SecretKey,
+    pub revocation_basepoint_secret: SecretKey,
+    pub payment_basepoint_secret: SecretKey,
+    pub delayed_payment_basepoint_secret: SecretKey,
+    pub htlc_basepoint_secret: SecretKey,
     pub commitment_seed: [u8; 32],
     pub secp_ctx: Secp256k1<All>,
 }
@@ -377,7 +377,7 @@ pub struct ChannelKeyManager {
 
 
 ```rust
-let local_htlc_privkey = keys_manager.htlc_base_key;
+let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 ```
 
 </details>

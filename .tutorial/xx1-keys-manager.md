@@ -352,10 +352,10 @@ The `ChannelKeyManager` holds the specific set of keys for a **single Lightning 
 ```rust
 pub struct ChannelKeyManager {
     pub funding_key: SecretKey,
-    pub revocation_base_key: SecretKey,
-    pub payment_base_key: SecretKey,
-    pub delayed_payment_base_key: SecretKey,
-    pub htlc_base_key: SecretKey,
+    pub revocation_basepoint_secret: SecretKey,
+    pub payment_basepoint_secret: SecretKey,
+    pub delayed_payment_basepoint_secret: SecretKey,
+    pub htlc_basepoint_secret: SecretKey,
     pub commitment_seed: [u8; 32],
     pub secp_ctx: Secp256k1,
 }
@@ -367,19 +367,19 @@ impl KeysManager {
     pub fn derive_channel_keys(&self, channel_id_index: u32) -> ChannelKeyManager {
         // Use derive_key for each key family
         let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
-        let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
-        let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
-        let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_id_index);
-        let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
+        let revocation_basepoint_secret = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
+        let payment_basepoint_secret = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
+        let delayed_payment_basepoint_secret = self.derive_key(KeyFamily::DelayBase, channel_id_index);
+        let htlc_basepoint_secret = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
         let commitment_seed = self
             .derive_key(KeyFamily::CommitmentSeed, channel_id_index)
             .secret_bytes();
         ChannelKeyManager {
             funding_key,
-            revocation_base_key,
-            payment_base_key,
-            delayed_payment_base_key,
-            htlc_base_key,
+            revocation_basepoint_secret,
+            payment_basepoint_secret,
+            delayed_payment_basepoint_secret,
+            htlc_basepoint_secret,
             commitment_seed,
             secp_ctx: self.secp_ctx.clone(),
         }
@@ -398,10 +398,10 @@ To complete this exercise, you'll need to call the `derive_key` function we impl
 | Field | KeyFamily |
 |-------|-----------|
 | `funding_key` | `KeyFamily::MultiSig` |
-| `revocation_base_key` | `KeyFamily::RevocationBase` |
-| `payment_base_key` | `KeyFamily::PaymentBase` |
-| `delayed_payment_base_key` | `KeyFamily::DelayBase` |
-| `htlc_base_key` | `KeyFamily::HtlcBase` |
+| `revocation_basepoint_secret` | `KeyFamily::RevocationBase` |
+| `payment_basepoint_secret` | `KeyFamily::PaymentBase` |
+| `delayed_payment_basepoint_secret` | `KeyFamily::DelayBase` |
+| `htlc_basepoint_secret` | `KeyFamily::HtlcBase` |
 | `commitment_seed` | `KeyFamily::CommitmentSeed` |
 
 For example, to derive the `funding_key`:
@@ -425,10 +425,10 @@ impl KeysManager {
     // return ChannelKeyManager
     ChannelKeyManager {
         funding_key,
-        revocation_base_key,
-        payment_base_key,
-        delayed_payment_base_key,
-        htlc_base_key,
+        revocation_basepoint_secret,
+        payment_basepoint_secret,
+        delayed_payment_basepoint_secret,
+        htlc_basepoint_secret,
         commitment_seed,
         secp_ctx: self.secp_ctx.clone(),
     }
@@ -457,7 +457,7 @@ let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
 Next up is the `RevocationBase`. This is very similar to the last block of code you wrote!
 
 ```rust
-let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
+let revocation_basepoint_secret = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
 ```
 
 </details>
@@ -468,7 +468,7 @@ let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_
 At this point, you're a pro. You know what to do!
 
 ```rust
-let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
+let payment_basepoint_secret = self.derive_key(KeyFamily::PaymentBase, channel_id_index);
 ```
 
 </details>
@@ -479,7 +479,7 @@ let payment_base_key = self.derive_key(KeyFamily::PaymentBase, channel_id_index)
 Let's derive another!
 
 ```rust
-let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_id_index);
+let delayed_payment_basepoint_secret = self.derive_key(KeyFamily::DelayBase, channel_id_index);
 ```
 
 </details>
@@ -490,7 +490,7 @@ let delayed_payment_base_key = self.derive_key(KeyFamily::DelayBase, channel_id_
 If you've heard that Lightning has lots of keys, you heard correctly!
 
 ```rust
-let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
+let htlc_basepoint_secret = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
 ```
 
 </details>
@@ -517,10 +517,10 @@ Finally, let's bundle all these keys together into a `ChannelKeyManager` struct 
 ```rust
 ChannelKeyManager {
     funding_key,
-    revocation_base_key,
-    payment_base_key,
-    delayed_payment_base_key,
-    htlc_base_key,
+    revocation_basepoint_secret,
+    payment_basepoint_secret,
+    delayed_payment_basepoint_secret,
+    htlc_basepoint_secret,
     commitment_seed,
     secp_ctx: self.secp_ctx.clone(),
 }

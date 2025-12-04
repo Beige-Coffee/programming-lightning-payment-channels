@@ -19,14 +19,14 @@ impl ChannelKeyManager {
             funding_pubkey: PublicKey::from_secret_key(&self.secp_ctx, &self.funding_key),
             revocation_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
-                &self.revocation_base_key,
+                &self.revocation_basepoint_secret,
             ),
-            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_base_key),
+            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_basepoint_secret),
             delayed_payment_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
-                &self.delayed_payment_base_key,
+                &self.delayed_payment_basepoint_secret,
             ),
-            htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_base_key),
+            htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_basepoint_secret),
         }
     }
 
@@ -112,7 +112,7 @@ impl ChannelKeyManager {
 
         // Derive local delayed payment key (our to_local output)
         let local_delayed_payment_basepoint =
-            PublicKey::from_secret_key(&self.secp_ctx, &self.delayed_payment_base_key);
+            PublicKey::from_secret_key(&self.secp_ctx, &self.delayed_payment_basepoint_secret);
         let local_delayed_payment_key = derive_public_key(
             &local_delayed_payment_basepoint,
             &per_commitment_point,
