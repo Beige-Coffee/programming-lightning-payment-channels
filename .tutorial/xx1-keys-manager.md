@@ -1,23 +1,26 @@
 # Lightning Wallet
+Before we begin our journey into Lightning Network transactions themselves, we'll need to build a **wallet** that can provide us with all of the public and private keys we'll need -- there are many! If you own self-custody bitcoin, then you have a wallet already! Your wallet is responsible for storing your private key and generating new public keys (and, therefore, addresses) to receive bitcoin to. As we'll soon learn, the Lightning protocol utilizes multiple keys, so we'll need to create a specific wallet to manage our Lightning channels. If you'd like a quick refresher on elliptic curve cryptography and what a public/private key is, **learn me a bitcoin** provides an excellent resource [here](https://learnmeabitcoin.com/technical/cryptography/elliptic-curve/).
 
-Before we can begin our journey into programming Lightning network transactions, we'll need to build a wallet that can provide us with all of the public and private keys we'll need -- there are many! If you'd like a quick refresher on elliptic curve cryptography and what a public/private key is, **learn me a bitcoin** provides an excellent resource [here](https://learnmeabitcoin.com/technical/cryptography/elliptic-curve/).
-
-This section is a little like eating your vegetables; it may not be your favorite thing to do, but it's a required pre-requisite to gain a strong and intuitive understanding of how Lightning works.
+This section is a little like eating your vegetables; it may not be your favorite thing to do, but it's a required pre-requisite to gain a strong and intuitive understanding of how Lightning works. 
 
 ## Starting With The End In Mind
-Let's start by reviewing our end goal: **We need to create unique public and private keys that can be used for each spending path in our commitment transaction outputs**. If this doesn't make sense to you yet, don't worry! The rest of this course will dive into commitment transactions in excrutiating detail. For now, we simply want to gently introduce the fact that there are **multiple types of public keys** and provide an intuition for **where they will be imbeded in the transaction**.
+Let's start with a brief spoiler alert! At it's core, the Lightning Network is a protocol that defines how multiple parties can *update* bitcoin transactions such that bitcoin is trustlessly transfered between and across parties. These transactions have multiple spending paths, each representing a specific condition under which bitcoin can be spent. Crucially, each spending path will utilize a unique public key.
 
-For the rest of this course, **we'll play the part of Alice** in implementing and operating our Lightning implementation. In the below diagram, you can see each public key that Alice will provide for this arbitrary channel state between Alice and Bob. NOTE: for simplicity, the Hash-Time-Locked-Contract (HTLC) output is *not* pictured, but Alice will have an HTLC public key embedded within the HTLC output for both her commitment transaction and Bob's commitment transaction. Again, if the words "HTLC" and "commitment transaction" don't make sense, that's totally okay!
+The diagram below should help provide some intuition for this concept. If the diagram doesn't make sense to you, don't worry. At this point in the course, we haven't reviewed anything yet! For now, the key takeaway is that the bitcoin transactions have multiple spending paths with muliple public keys. For example, imagine Alice has a Lightning channel with Bob. Alice, on the left side in the below diagram, will have two outputs on her bitcoin transaction. One output is simply locked to a **Pay-To-Witness-Public-Key-Hash**. The other output is locked to a **Pay-To-Witness-Script-Hash** output, which has two spending paths. Each spending path has its own unique public key embdedded in it. If you have good attention to detail, you'll notice that both Alice and Bob are providing public keys in the diagram below. We'll learn more about all of these nuances in a moment!
 
 The most important thing to take away from this diagram is the following:
 - We'll need **different** public keys - one for each spending path.
 - *Most* of the public keys that are placed in each spending path are a **combination** of two public keys: a **basepoint** and a **per commitment point**. We'll cover both of these shortly.
 
+💡 PRO TIP: There will be a LOT of diagrams throughout this course. They may be hard to see at first, but if you zoom in, they should render quite nicely!
+
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/basepoint_keys.png" alt="basepoint_keys" width="100%" height="auto">
 </p>
 
-Below is a list of the basepoints and basepoint secrets used in the Lightning Network. For now, we'll just be specifying their name and data structure. As we begin to program our Lightning channels, we'll learn *much* more about each and their specific purpose.
+Below is a list of the **basepoints** and **basepoint secrets** used in the Lightning Network. A "basepoint" is simply a bitcoin public key (a point on the secp256k1 elliptic curve). However, it's called a "basepoint" in the protocol because the public key is, usually, not used directly in a bitcoin transaction. Instead, it's combined with other public keys, creating a unique public key for each transaction.
+
+Since we haven't learned how Lightning works yet, it's hard to descrine what each of these keys is used for. Therefore, at this point, we'll just specify each basepoint and data structure. As we begin to program our Lightning channels, we'll learn *much* more about each and its specific purpose.
   - **Revocation Basepoint Secret**: Secret Key
   - **Revocation Basepoint**: Public Key
   - **Payment Basepoint Secret**: Secret Key
@@ -26,28 +29,26 @@ Below is a list of the basepoints and basepoint secrets used in the Lightning Ne
   - **Delayed Payment**: Public Key
   - **HTLC Basepoint Secret**: Secret Key
   - **HTLC Basepoint**: Public Key
-  - **Commitment Seed**: The commitment seed is a 256-bit scalar used to generate a series of secrets **for each commitment state**. As we'll soon learn, these secrets will combined with the above basepoints/secrets to generate the private and public keys used in each commitment transactions output scripts.
+  - **Commitment Seed**: The commitment seed is a 256-bit scalar used to generate a series of secrets **for each state**. As we'll soon learn, these secrets will combined with the above basepoints/secrets to generate the private and public keys used in each Lightning transaction's output script.
 
 #### Question: Now that we've reviewed the various types of public and private keys we'll need to program our Lightning implementation, can you think of an effective way to organize these keys?
 <details>
   <summary>Answer</summary>
 
-To answer this question, we must discuss what it means to have an "effective" way to organize our keys. For instance, one possible solution is that we simply generate a new, random private key for each key type we'll need. In this scenario, we'd have five secrets we need to safely manage. That doesn't sound efficient or safe!
+The naive approach would be to generate a new random private key for each key type (Revocation, Payment, Delayed Payment, HTLC, and Commitment Seed). But that would mean we need to back up five separate secrets *per channel*. That doesn't sound efficient or safe!
 
-Another option is to leverage **BIP32 hierarchical deterministic (HD) key derivation**, whereby we can use one single seed and deterministially generate a series of *child* public and private keys from that seed. This is much more efficient and safe, as we only need to safely manage one seed.
+A better option is to leverage **BIP32 hierarchical deterministic (HD) key derivation**, whereby we can use one single seed and deterministially generate a series of *child* public and private keys from that seed. This is much more efficient and safe, as we only need to safely manage one seed.
 
 Next, we'll explore using BIP32 to derive all of the keys we'll need to implement our Lightning channel.
 
 </details>
 
 ## Lightning Off-Chain Wallet Strucure
-At this point, we have a general idea of *which* keys we'll need to use in our Lightning implementation. That said, we don't yet know what they will be used for, but that will come in due time! Fun Fact: the following key derivation is actually very similar to how the [Lightning Network Deamon (LND)](https://github.com/lightningnetwork/lnd) works.
-
-Let's set the scene by briefly reviewing **Bitcoin Improvement Proposal (BIP) 32**.
+At this point, we have a general idea of *which* keys we'll need to use in our Lightning implementation. That said, we don't yet know what they will be used for, but that will come in due time! Let's set the scene by briefly reviewing **Bitcoin Improvement Proposal (BIP) 32**.
 
 BIP 32  describes a **hierarchical deterministic** (**HD**) wallet structure and introduces the following characteristics for key management:
 - **Single Source**: All public and private keys can be derived from a single seed. As long as you have access to the seed, you can re-derive the entire wallet.
-- **Hierarchical**: All keys can be organized in a tree structure.
+- **Hierarchical**: All keys can be organized into a tree structure.
 - **Deterministic**: All keys are generated the same exact way. Each time you restore you wallet from your seed, you'll get the exact same result.
 
 ### Derivation Paths
@@ -64,12 +65,13 @@ m / purpose' / coin_type' / account' / change / address_index
 Here is how to interpret the above scheme:
 - `m`: This is the master extended key for the wallet.
 - `/`: Whenever you see this, we are deriving a new child key.
-- `purpose'`: The purpose specifies the wallet structure. The value in the purpose field typically reflects the BIP that describes the wallet scheme for that output type. For example, `m/84'` would mean that this wallet structure follows the derivation scheme described in [BIP 84](https://bips.dev/84/) and uses Pay-To-Witness-Public-Key-Hash (P2WPKH) serialization format. Since there is a `'`, we know this path is hardened.
-- `coin_type'`: This represents the cryptocurrency that we're derving keys for. A coin type path was included so that hardware wallets can support multiple cryptocurrencies using a single seed. For example, `0` is Bitcoin, `1` is also Bitcoin (Not mainnet, so testnet, regtest, etc.), `2` is Litecoin. You can see the list [here](https://github.com/satoshilabs/slips/blob/master/slip-0044.md).
+- `purpose'`: The purpose specifies the wallet structure. The value in this field reflects the BIP that describes the wallet scheme for a specific output type. For example, `m/84'` means that this wallet structure follows the derivation scheme described in [BIP 84](https://bips.dev/84/) and uses Pay-To-Witness-Public-Key-Hash (P2WPKH) serialization format. Since there is a `'`, we know this path is [hardened](https://learnmeabitcoin.com/technical/keys/hd-wallets/extended-keys/#extended-private-key-hardened).
+- `coin_type'`: This represents the cryptocurrency that we're derving keys for. A coin type path was included in the BIP so that hardware wallets can support multiple cryptocurrencies using a single seed. For example, `0` is Bitcoin, `1` is also Bitcoin (Not mainnet, so testnet, regtest, etc.), `2` is Litecoin. You can see the list [here](https://github.com/satoshilabs/slips/blob/master/slip-0044.md).
 - `account'`: This allows wallet users to create separate "accounts" to separate their funds.
 - `receiving/change`: This field separates into a **receiving** (`0`) index and **change** (`1`) index such that users can generate separate addresses, depending on if they are receiving payments or generating change addresses. NOTE: these are **normal children**, meaning they will have corresponding **extended public keys** which can derive child public keys without needing to know the private key.
 - `index`: The index field specifies the actual keys used to generate addresses and receive bitcoin. The above levels in the HD wallet provide the structure that ultimately points to one of these keys, enabling efficient and deterministic organization.
 
+Fun Fact: The above key derivation scheme is actually very similar to how the [Lightning Network Deamon (LND)](https://github.com/lightningnetwork/lnd) derives Lightning keys.
 
 ### Implementing Our Wallet
 We'll leverage the HD wallet structure to build our Lightning wallet, as this will enable us to derive all of the keys we need from a single seed. Below is an image depicting our wallet architecture. 
@@ -80,29 +82,29 @@ We'll leverage the HD wallet structure to build our Lightning wallet, as this wi
 
 Here is how to interpret the above scheme:
 - `m`: This is the master extended key for the wallet, derived from our wallet's seed.
-- `purpose'`: We'll use `1017'` for the purpose. This is actually the same value that LND uses. It's an arbitrary choice and is not specified in any bitcoin or lightning protocol specification. We're simply using it as a unique value to plug into the derivation scheme.
-- `coin_type'`: Since we're running regtest for this course, we'll use `1'` for this field.
+- `purpose'`: We'll use `1017'` for the purpose. This is the value that LND uses. Since our key derivation scheme is LND-inspired, we'll use it too! That said, it's an arbitrary choice and not specified in any Bitcoin or Lightning protocol specification. We're simply using it as a unique value to plug into the derivation scheme.
+- `coin_type'`: Since we're testing our Lightning implementation against the BOLT Test Vectors, we'll use `0` for this course. Remember, `0` is mainnet bitcoin.
 - `account'`: This is where the magic happens. We'll specify a specific **key family** for each `account`. This will enable us to deterministically derive unique public and private keys for each channel our Lightning node opens.
-- `receiving`: We won't be generating any change addresses with this field, so we'll keep `0` (receiving) as a defualt value here.
+- `receiving`: We won't be generating any change addresses with this field, so we'll keep `0` (receiving) as a default value here.
 - `index`: The index will be unique for each channel we open.
 
-By leveraging this architecture, we can create all of the public key, private key, and seed information that we'll need to operate our Lightning channel! Remember, at this point, you don't need to understand what these keys are used for yet. What's important is that you understand *how* we can create these keys.
+By leveraging this architecture, we can create all of the public key, private key, and seed information that we'll need to operate our Lightning channel! Remember, at this point, you don't need to understand what these keys are used for yet. What's important is that you understand *how* we derive our keys.
 
 ## ⚡️ Build a KeysManager
-Let's put the above theory into practice! Over the next few exercises, we're going to use [rust bitcoin](https://docs.rs/bitcoin/latest/bitcoin/) to implement an HD wallet that can manage and derive the keys we'll need for our lightning node. Cool, eh!
+Let's put the above theory into practice! Over the next few exercises, we're going to use [**rust bitcoin**](https://docs.rs/bitcoin/latest/bitcoin/) to implement an HD wallet that can manage and derive the keys we'll need for our Lightning channel. Cool, eh!?
 
-Let's start by creating a new `KeysManager` from a seed (random 256-bit value). The `KeysManager` is a custom type defined in `src/exercises/types.rs` and can be seen in the dropdown below.
+We'll start by creating a new `KeysManager` from a seed (random 256-bit value). The `KeysManager` is a custom type defined in `src/exercises/types.rs` and can be seen in the dropdown below. The `types.rs` file contains all of the custom types we'll be using for this course. Feel free to check it out!
 
 <details>
   <summary>Click to see KeysManager</summary>
 
-As you can see, the `KeysManager` is a simple struct that holds three essential components for our HD wallet:
+As you can see below, the `KeysManager` is a simple struct that holds three major components for our HD wallet:
 
-1. **`secp_ctx`** - A secp256k1 context that we'll use for all cryptographic operations (signing transactions, deriving public keys, etc.).
+1. **`secp_ctx`**: The secp256k1 context that we'll use for all cryptographic operations (signing transactions, deriving public keys, etc.).
 
-2. **`master_key`** - The root extended private key (`Xpriv`) for our HD wallet. This is derived directly from our seed and serves as the starting point for deriving all other keys we'll need. This is the master key (`m`) in the derivation path above!
+2. **`master_key`**: The root extended private key (`Xpriv`) for our HD wallet. This is derived directly from our seed and serves as the starting point for deriving all other keys we'll need. This is the master key (`m`) in the derivation path we reviewed earlier!
 
-3. **`network`** - The Bitcoin network we're operating on (mainnet, testnet, regtest, etc.). This is important because, as we learned earlier, the key derivation will differ depending on the network.
+3. **`network`**: The Bitcoin network we're operating on (mainnet, testnet, regtest, etc.). This is important because, as we just learned, the key derivation will differ depending on the network, as changing the network will result in a different path in the tree.
 
 ```rust
 pub struct KeysManager {
@@ -116,7 +118,7 @@ pub struct KeysManager {
 
 Head over to `src/exercises/keys/derivation.rs`, and let's implement our first function!
 
-This function, `new_keys_manager`, will take a `seed` and Bitcoin `network` and return a `KeysManager` with the master key that will anchor our entire Lightning wallet.
+This function, `new_keys_manager`, will take a `seed` and Bitcoin `network`, and it will return a `KeysManager` with the master key that will anchor our entire Lightning wallet.
 
 ```rust
 pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
@@ -132,13 +134,45 @@ pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
 ```
 
 <details>
-  <summary>Step 1: Initialize the Secp256k1 Context</summary>
+  <summary>💡 Hint 💡</summary>
 
-Since we'll be performing cryptographic operations in this exercise, we'll need to start by defining a variable that can perform those cryptographic operations for us. To do that, we can use the `Secp256k1` crate.
+To complete this exercise, you'll need to ultimately return a `KeysManager` object, which contains the **secp256k1 context**, **extended master key** (from the seed), and the Bitcoin network for the HD wallet.
+
+Rust Bitcoin re-exports the `rust-secp256k1` crate, so we can import the secp256k1 library from bitcoin using the following syntax: `use bitcoin::secp256k1::`. If you visit the [rust-secp256k1 docs](https://docs.rs/secp256k1/0.31.1/secp256k1/) for , you'll see how to create a new context. HINT: it's `let secp = ...`.
+
+To create a new master extended private key, see the rust bitcoin docs [here](https://docs.rs/bitcoin/0.32.0/bitcoin/bip32/struct.Xpriv.html#method.new_master)!
+
+Below is a hint to help get you started. As you can see, the return object is provided for you!
+
+```rust
+pub fn new_keys_manager(seed: [u8; 32], network: Network) -> KeysManager {
+
+  // initialize secp256k1 context
+  // create extended master key from seed
+
+  // return KeysManager
+  KeysManager {
+      secp_ctx,
+      master_key,
+      network,
+  }
+}
+```
+
+</details>
+
+
+<details>
+  <summary>Step 1: Initialize the Secp256k1 Context</summary>
+  
+Since our HD wallet will need to perform cryptographic operations (key derivation, signing), we'll start by creating a secp256k1 context.
 
 ```rust
 let secp_ctx = Secp256k1::new();
 ```
+
+The `Secp256k1` type comes from the `bitcoin::secp256k1` module, which is imported at the top of the `derivation.rs` file.
+
 </details>
 
 <details>
@@ -146,7 +180,7 @@ let secp_ctx = Secp256k1::new();
 
 Remember, our function takes a 32-byte `seed` as input, so we can use it to generate a BIP-32 extended private key (master key) from which all other keys will be derived!
 
-To do this, we can leverage the `Xpriv` type, provided by the `bip32` crate in rust-bitcoin. Since the derivation path will depend on the network type, we'll need to pass 'network' the `new_master` function, available on the `Xpriv` type.
+To do this, we'll leverage the `Xpriv` type, provided by the `bip32` module in rust-bitcoin. Since extended keys include network-specific version bytes in their serialization, we'll need to pass `network` to the `new_master` function available on the `Xpriv` type.
 
 This function will return a `Result` type, so we'll need to unwrap it before we can use it. In a robust application, we will want to handle this error more precisely.
 
@@ -171,20 +205,19 @@ KeysManager {
 
 
 ## ⚡️ Derive Private Key
-Now that we have our `KeysManager`, which holds our master key, `m`, let's implement a function that can derive a private key from the derivation path we reviewed above. This function will enable us to derive all of the private keys (and, subsequently, public keys) that we'll need to use for our Lightning transactions.
-
+Now that we have our `KeysManager`, which holds our master key, `m`, let's implement a function that can derive a private key from the derivation path we reviewed earlier (also seen below). This function will enable us to derive all of the private keys (and, subsequently, public keys) that we'll need to use for our Lightning transactions.
 ```
 m / purpose' / coin_type' / key_family' / change / channel_id_index
 ```
-
-To complete this exercise, you'll need to implement the `derive_key` on the `KeysManager` that we initialized in the prior transaction. When implementing -- accomplished using the `impl` keyword -- a function in Rust, the function you're implementing will have access to any internal fields that the struct contains. In this case, you'll want to use the master key to derive new child private keys at the specified derivation path!
+To complete this exercise, you'll need to implement the `derive_key` function on the `KeysManager` that we initialized in the prior exercise. In Rust, we implement methods on a struct using the `impl` keyword. Within an `impl` method, you'll have access to the struct's internal fields. For example, in this case, you'll have access to the master key, which you can use to derive new child private keys at the specified derivation path!
 
 Speaking of derivation paths, there is a new type that we'll need to use for this exercise: `KeyFamily`. As we learned earlier, the **key family** acts as the `account` in our derivation path and specifies the use of the keys being derived. Similar to `KeysManager`, `KeyFamily` is a custom type defined in `src/exercises/types.rs`. Click the dropdown to learn more.
 
 <details>
   <summary>Click to see KeyFamily</summary>
 
-The `KeyFamily` enum defines the different **types** of keys our Lightning node needs to derive. Each variant corresponds to a specific use case in Lightning channels:
+The `KeyFamily` enum defines the different **types** of keys our Lightning node needs to derive. Each variant corresponds to a specific use case in Lightning channels. Again, don't worry if you don't know what these keys are used for yet - we'll get to that later!
+
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KeyFamily {
@@ -197,16 +230,13 @@ pub enum KeyFamily {
     NodeKey = 6,
 }
 ```
-
-Each `KeyFamily` variant has a numeric value that slots into the **key family** position of our derivation path:
+Each variant has a numeric value that slots into the **account** position of our derivation path:
 ```
 m / 1017' / 0' / <key_family>' / 0 / <channel_id_index>
                       ↑
-                This number!
+                    Here!
 ```
-
 For example, when we need to derive a key for the funding multisig, we'd use `KeyFamily::MultiSig` (which equals `0`), giving us the path `m/1017'/0'/0'/0/<channel_id_index>`.
-
 </details>
 
 ```rust
@@ -227,14 +257,41 @@ impl KeysManager {
 ```
 
 <details>
+  <summary>💡 Hint 💡</summary>
+
+To complete this exercise, you'll need to return the `SecretKey` that corresponds to the `KeyFamily` and `channel_id_index` that is passed into the function. For example, if the following values are passed into the `derive_key` function...
+- `key_family`: `KeyFamily::MultiSig`
+- `channel_id_index`: `0`
+
+... then you would need to return the private key associated with the `MultiSig` key type for Channel Index 0. The derivation path would be the following:
+```
+m / 1017' / 0' / 0' / 0 / 0
+```
+The below two docs should be very helpful in this exercise.
+1. You can define a derivation path using the [`from_str` method available on the `DerivationPath` struct](https://docs.rs/bitcoin/0.32.0/bitcoin/bip32/struct.DerivationPath.html) in Rust Bitcoin.
+2. You can derive a new private key using the [`derive_priv` method available on the `Xpriv` struct](https://docs.rs/bitcoin/0.32.0/bitcoin/bip32/struct.Xpriv.html#method.derive_priv).
+
+Note that `derive_priv` returns an extended private key (`Xpriv`), but the function that we're completing in this exercise returns a `SecretKey`. To  extract the secret key from the extended private key, you can use the below notation.
+
+```rust
+extended_priv_key.private_key
+```
+
+</details>
+
+
+<details>
   <summary>Step 1: Construct the Derivation Path String</summary>
 
-The first thing we need to do is build our BIP-32 derivation path as a string. Remember, our path follows this structure:
+The first thing we need to do is define the derivation path for the given Key Family and Channel ID Index. One intuitive and straightforward way to do this is by using the `from_str` method available on the `DerivationPath` struct. 
+
+To do this, we can first define a string that represents the derivation path. Remember, our path follows this structure:
 ```
 m / 1017' / 0' / <key_family>' / 0 / <channel_id_index>
 ```
 
 We can use Rust's `format!` macro to build this string dynamically, plugging in our `key_family` and `channel_id_index` values. Note that we need to cast `key_family` to a `u32` to get its numeric value!
+
 ```rust
 let path_str = format!("m/1017'/0'/{}'/0/{}", key_family as u32, channel_id_index);
 ```
@@ -244,9 +301,10 @@ let path_str = format!("m/1017'/0'/{}'/0/{}", key_family as u32, channel_id_inde
 <details>
   <summary>Step 2: Parse the String into a DerivationPath</summary>
 
-Now that we have our path as a string, we need to convert it into a `DerivationPath` type that rust-bitcoin can actually use for key derivation. The `DerivationPath::from_str()` function handles this for us.
+Now that we have our path as a string, we need to convert it into a `DerivationPath` type that Rust Bitcoin can actually use for key derivation. As mentioned earlier, we can use the `DerivationPath::from_str()` function to do this for us.
 
-This function returns a `Result`, so we'll use `.expect()` to unwrap it. In production code, you'd want more robust error handling, but for our educational purposes, this works great!
+This function returns a `Result`, so we'll use `.expect()` to unwrap it.
+
 ```rust
 let path = DerivationPath::from_str(&path_str).expect("Valid derivation path");
 ```
@@ -256,9 +314,10 @@ let path = DerivationPath::from_str(&path_str).expect("Valid derivation path");
 <details>
   <summary>Step 3: Derive the Child Private Key</summary>
 
-Here's where the magic happens! We'll use our `master_key` to derive a child private key at the specified path. The `derive_priv` method takes two arguments: our secp256k1 context (for crypto operations) and the derivation path we just created.
+Here's where the magic happens! Now that we have the derivation path specified, we'll use our `master_key` to derive a child private key at the specified path. The `derive_priv` method takes two arguments: our secp256k1 context and the derivation path we just created.
 
-Since this is an `impl` function, we can access the `KeysManager`'s internal fields using `self`. Pretty convenient!
+Since this is an `impl` function, we can access the `KeysManager`'s internal fields using `self`.
+
 ```rust
 let derived = self
     .master_key
@@ -272,6 +331,7 @@ let derived = self
   <summary>Step 4: Extract and Return the Secret Key</summary>
 
 The `derive_priv` function returns an `Xpriv` (extended private key), but we just need the raw `SecretKey` for our Lightning operations. We can extract it from the `private_key` field and return it!
+
 ```rust
 derived.private_key
 ```
@@ -279,11 +339,11 @@ derived.private_key
 </details>
 
 ## ⚡️ Derive Channel Keys
-Great work! We're well on our way to building a wallet that can power our Lightning implementation. Let's continue this journey by building a function that can generate all of the keys and cryptographic material we'll need to operate our Lightning channel.
+Great work! We're well on our way to building a wallet that can power our Lightning implementation. Let's continue our journey by creating a function that generates all of the keys and cryptographic material we'll need during the rest of this course.
 
-To successfully complete this exercise, you'll need to implement `derive_channel_keys` on our `KeysManager`. This function will take a `channel_id_index`, which we can use for the index of our derivation path, thus creating unique keys for each channel.
+To complete this exercise, you'll need to implement the `derive_channel_keys` function on our `KeysManager`. It takes a `channel_id_index`, which represents a unique index for each Lightning channel that we open, and passes it into the `derive_key` function we implemented in the prior exercise.
 
-This function will return a `ChannelKeyManager`, which is a struct that holds all of the cryptographic material we need for a given channel. To complete this exercise, you'll need to derive the correct key for each key family using the `derive_key` function we just implemented, then assemble them all into a `ChannelKeyManager`.
+The function returns a `ChannelKeyManager`, which is a struct that holds all of the cryptographic material we need for a given channel. You'll derive the correct key for each key family using `derive_key`, then assemble them into a `ChannelKeyManager`.
 
 <details>
   <summary>Click to see ChannelKeyManager</summary>
@@ -314,7 +374,6 @@ impl KeysManager {
         let commitment_seed = self
             .derive_key(KeyFamily::CommitmentSeed, channel_id_index)
             .secret_bytes();
-
         ChannelKeyManager {
             funding_key,
             revocation_base_key,
@@ -327,25 +386,75 @@ impl KeysManager {
     }
 }
 ```
-Remember, at this point, it's not vital that you know what each key is used for. We're purposfully holding that information off until later, because each key will be introduced when we need it, which will hopefully make for a more intuitive and fruitful learning experience.
+
+Remember, at this point, it's not vital that you know what each key is used for. We're purposefully holding that information until later. Each key will be introduced when we need it, which will hopefully make for a more intuitive and fruitful learning experience.
+
 
 <details>
-  <summary>Step 1: Derive the Funding Key</summary>
+  <summary>💡 Hint 💡</summary>
 
-Let's start by deriving the `MultiSig` key family. We'll call our `derive_key` function and specify the correct key family. It's also worth noting that you don't necessarily need to derive this key first to pass this exercise. For simplicity and continuity, we derive keys in the same order as their index. 
+To complete this exercise, you'll need to call the `derive_key` function we implemented in the prior exercise for each key type, using the appropriate `KeyFamily` variant. Here's the mapping between `ChannelKeyManager` fields and `KeyFamily` variants:
 
-Since this is inside an `impl KeysManager` block, we can access the `derive_key` function using `self`.
+| Field | KeyFamily |
+|-------|-----------|
+| `funding_key` | `KeyFamily::MultiSig` |
+| `revocation_base_key` | `KeyFamily::RevocationBase` |
+| `payment_base_key` | `KeyFamily::PaymentBase` |
+| `delayed_payment_base_key` | `KeyFamily::DelayBase` |
+| `htlc_base_key` | `KeyFamily::HtlcBase` |
+| `commitment_seed` | `KeyFamily::CommitmentSeed` |
 
+For example, to derive the `funding_key`:
 ```rust
 let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
 ```
 
+**Note:** The `commitment_seed` field expects a `[u8; 32]`, not a `SecretKey`. You can convert a `SecretKey` to its raw bytes using the `secret_bytes()` method:
+```rust
+let commitment_seed = self.derive_key(KeyFamily::CommitmentSeed, channel_id_index).secret_bytes();
+```
+
+Don't forget to include `secp_ctx` in your `ChannelKeyManager`! To do this, you can simply clone it from `self`. Below is a hint to help get you started. As you can see, the return object is provided for you!
+
+```rust
+impl KeysManager {
+  pub fn derive_channel_keys(&self, channel_id_index: u32) -> ChannelKeyManager {
+        
+    // derive keys for each key family
+
+    // return ChannelKeyManager
+    ChannelKeyManager {
+        funding_key,
+        revocation_base_key,
+        payment_base_key,
+        delayed_payment_base_key,
+        htlc_base_key,
+        commitment_seed,
+        secp_ctx: self.secp_ctx.clone(),
+    }
+  }
+}
+```
+</details>
+
+<details>
+  <summary>Step 1: Derive the Funding Key</summary>
+
+Okay, you've clicked on the step-by-step instructions... let's dig into it!
+
+We'll start by deriving the `funding_key` using the `MultiSig` key family. Note that the order in which we derive each key doesn't really matter. What ultimately matters is that we assemble the `ChannelKeyManager` with each field assigned to the correct key.
+
+Since we're inside an `impl KeysManager` block, we can access the `derive_key` function using `self`.
+
+```rust
+let funding_key = self.derive_key(KeyFamily::MultiSig, channel_id_index);
+```
 </details>
 
 <details>
   <summary>Step 2: Derive the Revocation Base Key</summary>
 
-Next up is the `RevocationBase`. This is very similar to the last piece of code you wrote!
+Next up is the `RevocationBase`. This is very similar to the last block of code you wrote!
 
 ```rust
 let revocation_base_key = self.derive_key(KeyFamily::RevocationBase, channel_id_index);
@@ -391,7 +500,7 @@ let htlc_base_key = self.derive_key(KeyFamily::HtlcBase, channel_id_index);
 
 Okay, hold on a second! The `CommitmentSeed` is a bit different from the other keys. We derive it almost the exact same way, but we need to store it as raw bytes (a 32-byte array) rather than a `SecretKey` type. Luckily, `SecretKey` has a handy `.secret_bytes()` method that gives us exactly what we need!
 
-As we'll shortly see, we store the raw bytes because we use these bytes as a **seed** and **not** an **private key**. 
+As we'll soon see, we store the raw bytes because we use these bytes as a **seed** and **not** a **private key**. 
 
 ```rust
 let commitment_seed = self
