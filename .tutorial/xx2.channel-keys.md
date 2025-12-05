@@ -171,9 +171,9 @@ Okay, let's do a quick review of what we've implemented so far!
 
 First, we completed the function, `new_keys_manager`, which takes a **seed** and returns a `KeysManager` type, which contains the master key for our HD Lightning wallet and some other helpful context, such as the bitcoin network and a secp256k1 context for cryptographic operations.
 
-Next, we implemented `derive_key`, which we can use to generate a new private/public key for **any** arbitrary `KeyFamily` and channel state. This is a very powerful function, and it serves as the backbone for all of the keys we'll use in Lightning!
+Next, we implemented `derive_key`, which we can use to generate a new private key for **any** arbitrary `KeyFamily` and channel state. This is a very powerful function, and we'll use it to derive all of the keys we'll need for our Lightning channel!
 
-We then completed `derive_channel_keys`, which creates a new `ChannelKeyManager` for a given `channel_id_index`. This function will create all of the private key and seed material needed to operate a Lightning channel. Furthermore, we can derive keys for many different channels by simply changing the index passed into the function.
+We then completed `derive_channel_keys`, which creates a new `ChannelKeyManager` for a given channel - specified by the `channel_id_index`. This function will create all of the private key and seed material needed to operate a Lightning channel. Furthermore, we can derive keys for many different channels by simply changing the index passed into the function.
 
 Finally, we implemented `to_public_keys`, a method which is available on our `ChannelKeyManager`. This method will create a new structure, `ChannelPublicKeys`, which holds all of the public key material we'll need for our Lightning channel.
 

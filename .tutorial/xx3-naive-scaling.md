@@ -1,9 +1,11 @@
 # Irresponsibly Naive Scaling
-Now that we have the base architecture for our Lightning wallet, we're in a good position to begin our journey into Lightning transactions themselves.
+Now that we've reviewed how we can derive all of the keys we'll need to operate a Lightning channel, we're in a good position to begin our journey into Lightning transactions themselves.
 
-At the heart of Lightning and other scaling solutions is the concept of exchanging **"off-chain"** transactions. There are many ways to design an off-chain protocol, but the main theme they all have in common is that they involve exchanging data (ex: transactions) outside the scope of the bitcoin blockchain (aka **"on-chain"**). In the context of the Lightning Network, nodes will exchange **valid** transactions, in that they adhere to the rules of the bitcoin protocol, but the nodes choose not to publish these transactions until a later point in time. 
+At the heart of Lightning is the concept of exchanging **"off-chain"** transactions. There are various ways to design an off-chain protocol, but the main theme they all have in common is that they involve exchanging data (ex: transactions) outside the scope of the bitcoin blockchain (aka **"on-chain"**). In the context of the Lightning Network, nodes will exchange **valid** bitcoin transactions, in that they adhere to the rules of the bitcoin protocol, but the nodes choose not to publish these transactions until a later point in time. 
 
-For a simple analogy, imagine you want to make an off-chain payment to your friend. To do this, you can simply contruct a valid transaction and send it to them - perhaps via email or text message. After all, under the hood, a transaction is just data. Perhaps you do this many times, and your friend will decide to publish the transactions on-chain later - maybe when fees are lower!
+The Lightning protocol is quite complicated, so we'll begin with a simple example. Imagine you want to make an "off-chain" payment to your friend. To do this, you can contruct a valid transaction and send it to them - perhaps via email or text message. After all, under the hood, a transaction is just data.
+
+This is an off-chain transaction because it's **not** broadcasted to the bitcoin network nor mined in a block. If your friend trusts you, they can simply take this transaction, accept it as a valid form of payment, and wait to publish it later.
 
 <details>
   <summary>Click to see an example transaction!</summary>
@@ -19,11 +21,11 @@ Unless you have the Bitcoin protocol programmed into your brain, you likely won'
 
 ## Alice and Bob Exchange Off-Chain Transactions
 
-To help build our intuition, let's discuss what might be the most naive scaling solution possible. **PLEASE DON'T TRY THIS AT HOME!**.
+Let's build on the previous off-chain example by reviewing one of the most naive and insecure scaling solutions possible. **PLEASE DON'T TRY THIS AT HOME!**.
 
-Let's return to our good friends Alice and Bob. Of course, like all good Lightning analogies, imagine that Bob has started his own bar (good luck!). Since Alice and Bob both like bitcoin, Alice decides to pay Bob in bitcoin whenever she goes to his bar. However, to save on transaction fees and receive instant payments, Bob agrees to accept **off-chain** payments from Alice, meaning that Alice will send Bob a valid bitcoin transaction off-chain (ex: via text message), but Bob will **wait** to publish the transaction until some point in the future.
+Like all good computer science examples, we'll introduce Alice and Bob - two individuals who want to make off-chain payments to each other. Imagine that Bob has started his own bar (good luck!). Since Alice and Bob both like bitcoin, Alice decides to pay Bob in bitcoin whenever she goes to his bar. However, to save on transaction fees and receive instant payments, Bob agrees to accept **off-chain** payments from Alice, meaning that Alice will send Bob a valid bitcoin transaction off-chain (ex: via text message), and Bob will **wait** to publish the transaction until some point in the future.
 
-To bring this example to life, let's equip Alice and Bob with private and public keys. As we work through this course, we'll represent Alice and Bob's **signatures** with a **signature** logo, and we'll represent locking to their **public keys** with a **lock** logo. For this naive example, Alice's signature and public key will have a gray color, and Bob's will have a black color. Spoiler alert (!), as we progress through the course, we'll change the colors of the public keys and signatures to match their respective colors from the earlier exercises where we built our Lightning wallet infrustructure.
+To bring this example to life, let's equip Alice and Bob with private and public keys. As we work through this course, we'll represent Alice and Bob's **signatures** with a **signature** logo, and we'll represent locking to their **public keys** with a **lock** logo. For this naive example, Alice's signature and public key will have a gray color, and Bob's will have a black color. Spoiler alert (!), as we progress through the course, we'll change the colors of the public keys and signatures to match their respective colors from the earlier exercises where we built our Lightning wallet.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/AliceBobKeys.png" alt="AliceBobKeys" width="60%" height="auto">
@@ -56,7 +58,7 @@ If the fee that Alice and Bob originally decide on ends up being too small, then
 </p>
 
 ### Replace-By-Fee Won't Really Work
-You've probably heard of replace-by-fee, whereby you re-create the same transaction, but you just add extra fees. Since miners will prefer to mine transactions with the highest fees, they will choose the "updated" transaction with higher fees instead of the lower-fee transaction. The reason this doesn't work that well for Alice's payment to Bob is that there is no guarentee that Alice will be around to cooperate with Bob to create a new transaction with higher fees. Remember, Alice is creating valid transactions and handing them off-chain to Bob in exchange for a drink. If Bob wants to bump the fee via replace-by-fee, Alice will need to agree to re-sign a *new* transaction, which is not very reliable.
+You've probably heard of replace-by-fee, whereby you re-create the same transaction, but you just add extra fees. Since miners will prefer to mine transactions with the highest fees, they will choose the "updated" transaction with higher fees instead of the original lower-fee transaction. The reason this doesn't work that well for Alice's payment to Bob is that there is no guarentee that Alice will be around to cooperate with Bob to create a new transaction with higher fees. Remember, Alice is creating valid transactions and handing them off-chain to Bob in exchange for a drink. If Bob wants to bump the fee via replace-by-fee, Alice will need to agree to re-sign a *new* transaction, which is not very reliable.
 
 
 
@@ -81,7 +83,7 @@ As a reminder, at this point, Alice has purchased two drinks from Bob. There are
 
 In both scenarios, Bob will have the original transaction for 1,000,000 sats. However, if Alice trusts Bob, then, in the second scenario, she can trust Bob to ***only*** broadcast the transaction for 2,000,000 sats. This way, they can save on transaction fees and only publish one transaction to the bitcoin chain instead of two.
 
-To take this example further to the limit, imagine Alice was having a girls night out with her friends, and they bought 100,000 drinks over the course of the night. If she trusts Bob and continiously updates her balance, Bob can still only publish one transaction on-chain at the end of the night!
+To take this example further to the limit, imagine Alice was having a girls night out with her friends, and they bought 100,000 drinks over the course of the night. If she trusts Bob and continiously updates her balance, Bob can still only publish **one** transaction on-chain at the end of the night!
 
 </details>
 
@@ -96,8 +98,6 @@ By not broadcasting each transaction to the chain, the parties do not need to:
 ## Channel States
 
 In **payment channels**, it’s helpful to view them through the lens of **channel states**. For now, you can imagine a channel’s **state** as the distribution of funds after each payment. As we'll see shortly, dividing payments into channel states enables us to make the process of transfering funds clear and secure. This idea of "channel states" is also why you may hear people refer to Lightning as a **state machine**. 
-
-**NOTE: For simplicity, the change output has been removed from the visuals in the rest of this workbook.**.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/ChannelStates.png" alt="ChannelStates" width="100%" height="auto">
@@ -121,7 +121,7 @@ There are a few ways the above payment channel could go wrong. We'll start with 
 <details>
   <summary>Answer</summary>
 
-As we just learned, the core idea of a payment channel is to enable multiple parties to send each other off-chain transactions, resulting in instant and nearly-free payments. However, since these transactions are exchanged off-chain, we need a way to make sure the UTXO funding the channel is not spent on-chain in such a way that renders the off-chain transaction invalid - at least, not without both parties agreeing.
+As we just learned, the core idea of a payment channel is to enable multiple parties to send each other off-chain transactions, resulting in instant and nearly-free payments. However, since these transactions are exchanged off-chain, we need a way to make sure the UTXO funding the channel is not spent on-chain in such a way that renders the off-chain transaction invalid - at least, not without both parties agreeing. In other words, we need to ensure that Alice **cannot** mine a different transaction that spends the UTXO in the transaction she handed to Bob. If she was able to do this, then Bob's transaction would be considered invalid when he tried to broadcast it, because the input is no longer **unspent**.
 
 To alleviate this concern, we can require both parties to lock funds in a **2-of-2 multisig** output - one public key for each channel member. Therefore, to spend from this output, we'll need one signature from Alice and one signature from Bob. This will ensure that neither Alice nor Bob can double-spend the funds they are using in the payment channel.
 
