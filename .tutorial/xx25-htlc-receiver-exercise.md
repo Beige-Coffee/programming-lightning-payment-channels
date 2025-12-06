@@ -385,12 +385,12 @@ let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 <details>
   <summary>Step 2: Sign the Transaction Input</summary>
 
-Next, let's generate our signature for the HTLC offerer output on our commitment transaction. To do this, we can use the `sign_transaction_input` function we created earlier in this course.
+Next, let's generate our signature for the HTLC offerer output on our commitment transaction. To do this, we can use the `sign_transaction_input_sighash_all` function we created earlier in this course.
 
 <details>
   <summary>Click to see sign_transaction_input_sighash_all function definition </summary>
 
-We implemented the `sign_transaction_input` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
+We implemented the `sign_transaction_input_sighash_all` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
 
 ```rust
 pub fn sign_transaction_input_sighash_all(

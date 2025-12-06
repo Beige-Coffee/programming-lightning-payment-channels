@@ -91,7 +91,7 @@ Hopefully, the following points are now clear:
 
 Now that we've reviewed how signatures are exchanged over the Lightning Protocol, let's implement a function so that we can generate one of those signatures ourselves! As we'll see later, this will be central to our implementation, and we'll use it to sign commitment transactions later in the course.
 
-For this exercise, head over to `src/exercises/keys/channel_key_manager.rs` and find `pub fn sign_transaction_input`. As you can see, this function is within an `impl` block, so it has access to all of the internal components that are available via the `ChannelKeyManager` that we built in an earlier exericse. This function takes the following inputs:
+For this exercise, head over to `src/exercises/keys/channel_key_manager.rs` and find `pub fn sign_transaction_input_sighash_all`. As you can see, this function is within an `impl` block, so it has access to all of the internal components that are available via the `ChannelKeyManager` that we built in an earlier exericse. This function takes the following inputs:
 - `tx`: The transaction we want to sign.
 - `input_index`: The input index of the transaction we're signing.
 - `script`: The witness script that we're signing. We'll pass the 2-of-2 multisig witness script into this function later!
