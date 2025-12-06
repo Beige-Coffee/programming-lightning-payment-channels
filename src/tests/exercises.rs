@@ -237,7 +237,7 @@ fn test_06_create_funding_transaction() {
 }
 
 #[test]
-fn test_07_sign_transaction_input() {
+fn test_07_sign_transaction_input_sighash_all() {
     let our_seed = [0x01; 32];
     let remote_seed = [0x02; 32];
     let bitcoin_network = Network::Bitcoin;
@@ -280,7 +280,7 @@ fn test_07_sign_transaction_input() {
     );
 
     // Sign the transaction input
-    let signature = channel_keys.sign_transaction_input(
+    let signature = channel_keys.sign_transaction_input_sighash_all(
         &tx,
         0,
         &funding_script,

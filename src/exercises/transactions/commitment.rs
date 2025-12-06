@@ -244,7 +244,7 @@ pub fn finalize_holder_commitment(
 
     let local_funding_privkey = keys_manager.funding_key;
 
-    let local_funding_signature = keys_manager.sign_transaction_input(
+    let local_funding_signature = keys_manager.sign_transaction_input_sighash_all(
         &tx,
         input_index,
         &funding_script,

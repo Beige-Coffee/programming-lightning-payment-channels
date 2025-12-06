@@ -109,7 +109,7 @@ pub async fn run(commitment_txid: String) {
     // Step 2: In real Lightning, we would send this transaction to our counterparty
     // and they would send us back their signature. Here we simulate that by
     // creating their signature ourselves (but in reality we wouldn't have their key!)
-    let remote_htlc_signature = remote_channel_keys_manager.sign_transaction_input(
+    let remote_htlc_signature = remote_channel_keys_manager.sign_transaction_input_sighash_all(
         &tx,
         input_index,
         &htlc_script,

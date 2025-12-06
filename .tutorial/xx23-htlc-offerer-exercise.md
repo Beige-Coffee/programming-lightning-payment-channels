@@ -346,7 +346,7 @@ pub fn finalize_htlc_timeout(
 
     let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
-    let local_htlc_signature = keys_manager.sign_transaction_input(
+    let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
         &tx,
         input_index,
         &htlc_script,
@@ -410,7 +410,7 @@ Next, let's generate our signature for the HTLC offerer output on our commitment
 We implemented the `sign_transaction_input` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
 
 ```rust
-pub fn sign_transaction_input(
+pub fn sign_transaction_input_sighash_all(
     &self,
     tx: &Transaction,
     input_index: usize,
@@ -441,7 +441,7 @@ pub fn sign_transaction_input(
 </details>
 
 ```rust
-let local_htlc_signature = keys_manager.sign_transaction_input(
+let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
     &tx,
     input_index,
     &htlc_script,

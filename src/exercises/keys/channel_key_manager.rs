@@ -35,7 +35,7 @@ impl ChannelKeyManager {
 /// Exercise 7
 impl ChannelKeyManager {
 
-        pub fn sign_transaction_input(
+        pub fn sign_transaction_input_sighash_all(
             &self,
             tx: &Transaction,
             input_index: usize,

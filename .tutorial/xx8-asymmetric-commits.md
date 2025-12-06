@@ -102,7 +102,7 @@ The function should return the signature as a `Vec<u8>`, with the sighash type b
 
 ```rust
 impl ChannelKeyManager {
-    pub fn sign_transaction_input(
+    pub fn sign_transaction_input_sighash_all(
         &self,
         tx: &Transaction,
         input_index: usize,

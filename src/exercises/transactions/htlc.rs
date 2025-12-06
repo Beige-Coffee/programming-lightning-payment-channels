@@ -72,7 +72,7 @@ pub fn finalize_htlc_timeout(
 
     let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
-    let local_htlc_signature = keys_manager.sign_transaction_input(
+    let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
         &tx,
         input_index,
         &htlc_script,
@@ -152,7 +152,7 @@ pub fn finalize_htlc_success(
 
     let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
-    let local_htlc_signature = keys_manager.sign_transaction_input(
+    let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
         &tx,
         input_index,
         &htlc_script,
