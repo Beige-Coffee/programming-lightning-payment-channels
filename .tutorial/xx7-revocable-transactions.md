@@ -1,4 +1,4 @@
-# Penalty Mechanism
+# Adding A Penalty Mechanism For Cheating
 
 A **penalty mechanism** is a rule or process designed to deter undesirable behavior by imposing negative consequences on  entities that violate the rules.
 
@@ -11,7 +11,7 @@ Think back to our fairness protocol example from earlier. If Alice attempted to 
 
 Within the context of commitment transactions, we can incentivize good behavior by adding the following penalty mechanism:
 
-### If you publish an old commitment transaction, your counterparty is allowed to claim all of your funds.
+> ### If you publish an old commitment transaction, your counterparty is allowed to claim all of your funds.
 
 To enforce this rule, we can add an additional spending path to the output such that, if Alice attempts to cheat by publishing an old channel state, Bob can claim all of her funds.
 
