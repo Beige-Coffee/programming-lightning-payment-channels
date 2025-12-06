@@ -98,7 +98,7 @@ For this exercise, head over to `src/exercises/keys/channel_key_manager.rs` and 
 - `amount`: The value of the UTXO being spent
 - `secret_key`: The private key we're signing with.
 
-The function should return the signature as a `Vec<u8>`, with the sighash type byte appended.
+The function should return the signature as a `Vec<u8>`. **Crucially, this function should include a `SIGHASH_ALL` flag, indicating that the signature covers all of the inputs and outputs. This is the default in many wallet software implementations, as it ensures that the signature is only valid if the transaction is not changed.**
 
 ```rust
 impl ChannelKeyManager {
@@ -129,8 +129,47 @@ impl ChannelKeyManager {
 ```
 
 <details>
+  <summary>💡 Hint 💡</summary>
+
+To successfully complete this exercise, you'll need to generate a `SIGHASH_ALL` signature for the provided transaction input. In the context of Lightning, this means you need to sign a message (the commitment transaction) with your **Funding Private Key**, and append the `SIGHASH_ALL` to the resulting signature.
+
+Since Bitcoin specifies a specific [digest algorithm](https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki) for signatures, we'll need to process the transaction data a little before signing it. The exact algorithm is outside of the scope of this course, but, if you're interested in learning more, check out this [resource](https://learnmeabitcoin.com/technical/keys/signature/#segwit-algorithm) by Learn Me A Bitcoin.
+
+#### 1. Create a `SighashCache`
+
+First, you'll want to compute the signature hash message. To do this, check out Rust Bitcoin's [`SighashCache`](https://docs.rs/bitcoin/0.32.0/bitcoin/sighash/struct.SighashCache.html#method.p2wsh_signature_hash) struct - specifically, the `new` method.
+
+#### 2. Compute the P2WSH signature hash
+
+Next, you'll want to compute the BIP143 sigash for a P2WSH output, which is what we're generating a signature for! For this, check out Rust Bitcoin's [`p2wsh_signature_hash`](https://docs.rs/bitcoin/0.32.0/bitcoin/sighash/struct.SighashCache.html#method.p2wsh_signature_hash) method, which is available on your `SighashCache`.
+
+#### 3. Convert the sighash to a `Message`
+
+Once you have the sighash, you'll want to convert it to a [`Message`](https://docs.rs/secp256k1/0.29.0/secp256k1/struct.Message.html) type, which can be signed later.
+
+> HINT: Check out the `from_digest` method available on `Message`.
+
+#### 4. Sign with ECDSA
+
+Now you'll want to sign the message using your secret key! Check out the [`sign_ecdsa`](https://docs.rs/bitcoin/0.32.0/bitcoin/key/struct.Secp256k1.html#method.sign_ecdsa) function, available on your `self.secp_ctx` context.
+
+
+#### 5. Serialize and append the sighash type
+
+Finally, Bitcoin signatures must be DER-encoded with the sighash type byte appended. You can convert your signature to bytes by using the following:
+
+```rust
+let mut sig_bytes = sig.serialize_der().to_vec();
+```
+
+Next, you'll just have to `.push()` the `SIGHASH_ALL` flag. Rust Bitcoin's [`EcdsaSighashType`](https://docs.rs/bitcoin/0.32.0/bitcoin/enum.EcdsaSighashType.html) enum can help you with this!
+
+</details>
+
+<details>
 <summary>Step 1: Create a Sighash Cache</summary>
-First, we create a `SighashCache` from our transaction. This cache helps efficiently compute signature hashes, especially when signing multiple inputs (it caches intermediate computations to avoid redundant work).
+  
+First, we'll create a signature hash cache (`SighashCache`) from our transaction, which can help us build the actual hash that we'll need to sign.
 
 ```rust
 let mut sighash_cache = SighashCache::new(tx);
@@ -140,13 +179,7 @@ let mut sighash_cache = SighashCache::new(tx);
 <details>
 <summary>Step 2: Compute the P2WSH Signature Hash</summary>
 
-Now we calculate the sighash - the hash that we'll actually sign. For P2WSH (Pay-to-Witness-Script-Hash) inputs, we use p2wsh_signature_hash which implements BIP 143.
-
-We need to provide:
-- `input_index`: which input we're signing
-- `script`: the witness script (the actual script conditions, not its hash)
-- `amount`: the value of the output being spent (required for SegWit!)
-- `EcdsaSighashType::All`: signs all inputs and outputs (the standard for Lightning)
+Since we're signing a P2WSH (Pay-to-Witness-Script-Hash) input, we use the `p2wsh_signature_hash`method and specifiy that we're generating a `SIGHASH_ALL` signature.
 
 ```rust
 let sighash = sighash_cache
@@ -162,7 +195,8 @@ let sighash = sighash_cache
 
 <details>
 <summary>Step 3: Create a Signable Message</summary>
-The sighash is just a hash (32 bytes). To sign it with secp256k1, we need to wrap it in a `Message` type that the signing function can work with.
+  
+Now we have our message! However, to sign it with the secp256k1 crate, we need to wrap it in a `Message` type that the signing function can work with.
 
 ```rust
 let msg = Message::from_digest(sighash.to_byte_array());
@@ -172,7 +206,7 @@ let msg = Message::from_digest(sighash.to_byte_array());
 <details>
   <summary>Step 4: Sign the Message with ECDSA</summary>
   
-Here's where the magic happens! We use our secp256k1 context to create an ECDSA signature over the message using our secret key. This signature cryptographically proves that we possess the private key without revealing it.
+Now, the cryptographic magic! We'll use our secp256k1 context to create an ECDSA signature over the message using our secret key.
 
 ```rust
 let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
@@ -182,9 +216,7 @@ let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
 <details>
   <summary>Step 5: Serialize and Append Sighash Type</summary>
   
-Finally, we need to format our signature for inclusion in the transaction. We serialize it using DER encoding (the standard Bitcoin signature format), then append the sighash type byte (0x01 for SIGHASH_ALL) to the end.
-  
-Bitcoin requires this sighash type byte to be appended to every signature to indicate what parts of the transaction are covered by the signature.
+Finally, the grand finale - we'll serialize our signature, using DER encoding, and then append the sighash type byte (0x01 for SIGHASH_ALL) to the end.
 
 ```rust
 let mut sig_bytes = sig.serialize_der().to_vec();
