@@ -1,8 +1,8 @@
 # Adding A Penalty Mechanism For Cheating
 
-A **penalty mechanism** is a rule or process designed to deter undesirable behavior by imposing negative consequences on  entities that violate the rules.
+A **penalty mechanism** is a rule or process designed to deter undesirable behavior. Think back to our fairness protocol example from earlier. If Alice attempted to "cheat" Bob when cutting the cake, Bob could "punish" Alice by taking the plate with more cake. Things were so simple back then!
 
-Think back to our fairness protocol example from earlier. If Alice attempted to "cheat" Bob when cutting the cake, Bob could "punish" Alice by taking the plate with more cake. Things were so simple back then!
+The above **penalty mechanism** works because it imposes negative consequences on people who violate the rules, disincentivizing them from doing so.
 
 #### Can you think of a rule or mechanism we can implement in our channel to allow one party to punish the other if they attempt to cheat? You don't have to think of the exact technical implementation just yet - a simple intuition is fine for now.
 

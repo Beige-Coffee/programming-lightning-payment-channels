@@ -1,9 +1,10 @@
 # Asymmetric Commitment Transactions 
+
 You're probably itching to dig into advanced cryptography and punish some cheaters, but it will make our lives much easier if we introduce the concept of **asymmetric commitment transactions** first. 
 
-To build out a robust penalty mechanism, we'll need to first update our payment channel construction so that *each party has their own version of* ***each*** *commitment transaction*. They are mirror images of each other, but their output scripts are slightly different. As we'll see, **asymmetric commitment transactions provide us with a way to punish the cheating party**. 
+To build out our robust penalty mechanism, we'll need to update our payment channel construction so that *each party has their own version of* ***each*** *commitment transaction*. They are mirror images of each other, but their output scripts are slightly different. As we'll see, **asymmetric commitment transactions provide us with a way to punish the cheating party**. 
 
-In the below example, you can see that both Alice and Bob's versions reflect the same distribution of funds. **However, Alice's transaction has a special locking script for the output that pays to her public key, and Bob's transaction has a special locking script for the output that pays to his public key**.
+In the below example, you can see that both Alice and Bob's versions reflect the same distribution of funds. **However, Alice's version of the transaction has a special locking script for her output, and Bob's version of the transaction has a special locking script for his output**.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/asym_pseudo.png" alt="asym_pseudo" width="100%" height="auto">
@@ -13,9 +14,12 @@ In the below example, you can see that both Alice and Bob's versions reflect the
   <summary>The concept of "asymmetric commitment transactions" is very important if you want to understand how Lightning works. To help make sure this makes sense, click here and try to validate the following...</summary>
 
 As we mentioned above, both Alice and Bob will have their own commitment transaction **for each channel state**. Take a moment and see if you can verify the following, using the picture below. You will probably have to zoom in!
+
 - For Channel State 1, Alice's `to_local` has the same amount as Bob's `to_remote`. Both of these represent funds that Alice owns.
-- For Channel State 1, both of the `to_local` outputs contain a spending path that allows the counterparty to punish the broadcaster ***if the broadcaster cheats***. Remember, "cheating" means publishing an old channel state. In other words, if Alice publishes an old transaction, her output has a spending path for Bob to steal her funds. If Bob publishes and old transaction, his output has a spending path for Alice to steal his funds. 
+- For Channel State 1, both of the `to_local` outputs contain a spending path that allows the counterparty to punish the broadcaster ***if the broadcaster cheats***. Remember, "cheating" means publishing an old channel state. In other words, if Alice publishes an old transaction, her output has a spending path for Bob to steal her funds. If Bob publishes an old transaction, his output has a spending path for Alice to steal his funds.
+- For Channel State 1, Alice produces two distinct signatures: one for her version and one for Bob's. This is required since Alice and Bob's versions are technically different, so they will each have a unique signature.
 - For Channel State 2, once Alice sends 1,000,000 sats to Bob, all outputs for Alice and Bob are updated to reflect this payment. From this diagram, it should be clear that each party possesses their own unique copy of the commitment transaction, with these versions being asymmetric to one another.
+- For Channel State 2, once again, Alice and Bob both generate unique signatures for each version of the commitment transactions. 
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/asymmetric_commit_validation.png" alt="asymmetric_commit_validation" width="100%" height="auto">
@@ -24,30 +28,33 @@ As we mentioned above, both Alice and Bob will have their own commitment transac
 </details>
 
 <details>
-  <summary>Why do we need asymetric commitment transactions?</summary>
+  <summary>Why do we need asymmetric commitment transactions?</summary>
 
-The Lightning Network fairness protocol is set up in such a way that **you protect your counterparty** from ***you*** cheating. This is why the output that has ***your*** balance contains the penalty mechanism, while the output with your counterparty's balance is a simple **P2WPKH**. 
+The Lightning Network fairness protocol is set up in such a way that **you protect your counterparty** from ***you*** cheating. This is why the output that has ***your*** balance (on ***your version of the transaction***) contains the penalty mechanism, while the output with your counterparty's balance is a simple **P2WPKH**. 
 
-Remember, the way to cheat in Lightning is by publishing an old commitment state. Since all of your commitment transactions lock ***your*** bitcoin balance to a special locking script with a penalty mechanism, your counterparty will be able to claim your output if you publish an old state.
+Remember, the way to cheat in Lightning is by publishing an old commitment state. Since all of ***your*** commitment transactions lock ***your*** bitcoin balance to a special locking script with a penalty mechanism, your counterparty will be able to claim your output if you publish an old state.
+
 </details>
 
 # Exchanging Signatures
 
-To fully understand how asymetric commitment transactions work, we'll have to review the process of exchanging signatures. To do this, let's return to BOLT 2 and the protocol messages that are exchanged as part of the **Channel Establishment** process. Now that we've identified that we need a refund transaction (which is really just the first commitment transaction), we can review the rest of the protocol messages and even see how the information included in each message contributes to our asymetric commitments!
+As the podcasters say, let's "double-click" into the process of exchanging signatures. To do this, we'll return to BOLT 2 and the protocol messages exchanged as part of the **Channel Establishment** process. Now that we've identified that we need a Refund Transaction (which is really just the first Commitment Transaction), we can review the rest of the protocol messages and see how the information included in each message contributes to our asymmetric commitments!
 
 ### Open Channel
-We already reviewed the open channel message, so we won't discuss this in much depth. However, what we will draw attention to is the shaded area in the diagrams below. If an area is shaded, it means that the **"holder"** of that transaction does not yet know that information. For example, during the channel open process, Alice does not yet have Bob's funding public key or any of the other cryptographic material needed to operate their payment channel. Therefore, she cannot construct the full 2-of-2 multisig witness script yet, which also means she does not yet know the transaction ID for the funding transaction. Additionally, she doesn't yet know Bob's payment basepoint, and she doesn't have his signature for the first commitment transaction.
 
-On the other hand, once Bob receives Alice's `open_channel` message, he now has her **payment basepoint** so he can construct the Pay-To-Witness-Public-Key-Hash (P2WPKH) output for her. That said, he still doesn't have her signature, nor does he have much information about the funding transaction, so he can't add the input to his version of the first commitment transaction yet.
+We already reviewed the open channel message, so we won't discuss this in much depth. However, what we will draw attention to is the shaded area in the diagrams below. If an area is shaded, it means that the **"holder"** of that transaction does not yet know that information. For example, during the channel open process, Alice does not yet have **Bob's Funding Public Key** or any of the other cryptographic material needed to operate their payment channel. Therefore, she cannot construct the full 2-of-2 multisig witness script yet, which also means she does not yet know the transaction ID for the Funding Transaction. Additionally, she doesn't yet know **Bob's Payment Basepoint**, and she doesn't have his signature for the first commitment transaction.
+
+On the other hand, once Bob receives Alice's `open_channel` message, he now has **Alice's Payment Basepoint** so he can construct the Pay-To-Witness-Public-Key-Hash (P2WPKH) output for her. That said, he still doesn't have her signature, nor does he have much information about the Funding Transaction, so he can't add the input to his version of the first commitment transaction yet.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/sig_exchange_1.png" alt="sig_exchange_1" width="100%" height="auto">
 </p>
 
 ### Accept Channel
-As we learned earlier, if Bob accepts the channel, he will send an `accept_channel` message to Alice. In this message, he will provide, among other things, the public keys that Alice needs to complete the funding transaction and her version of the refund transaction. We haven't yet dug into the details regarding how each commitment state is updated, but it's worth noting that Bob also provides Alice with the information needed to derive the new public keys for each new commitment state.
 
-Once Alice recieves this information, she is able to add bob's funding public key to the 2-of-2 multisig and complete the funding transaction, which now means Alice has the funding TX ID and output information.
+As we learned earlier, if Bob accepts the channel, he will send an `accept_channel` message to Alice. In this message, he will provide, among other things, the public keys that Alice needs to complete the Funding Transaction and her version of the first Commitment Transaction, which we're calling the Refund Transaction. We haven't dug into the details regarding how each commitment state is updated yet, but it's worth noting that Bob also provides Alice with the information needed to derive the new public keys for each new commitment state.
+
+Once Alice receives this information, she is able to add **Bob's Funding Public Key** to the 2-of-2 multisig and complete the Funding Transaction, which now means Alice has the Funding TX ID and output information.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/sig_exchange_2.png" alt="sig_exchange_2" width="100%" height="auto">
@@ -55,11 +62,11 @@ Once Alice recieves this information, she is able to add bob's funding public ke
 
 ### Funding Created
 
-This is where we start building on the protocol messages we learned about earlier! Once Alice recieves the `accept_channel` message, she'll want to communicate the funding transaction information to Bob so that he can build his version of the first commitment transaction, which we're calling the "refund transaction". Therefore, she will send him a `funding_created` message, which includes the TX ID, funding output index, and **her signature for Bob's initial commitment**.
+This is where we start building on the protocol messages we learned about earlier! Once Alice receives the `accept_channel` message, she'll want to communicate the funding transaction information to Bob so that he can build his version of the First Commitment Transaction, which we're calling the "Refund Transaction". Therefore, she will send him a `funding_created` message, which includes the TX ID, funding output index, and **her signature for Bob's initial commitment**.
 
-At this point, Bob now has a version of the commitment transaction that is fully signed. However, Alice has not broadcast the funding transaction yet, so Bob's refund transaction would be rejected by the network if he tried to publish it for some reason, as the UTXO it's spending from does not yet exist.
+At this point, Bob now has a version of the commitment transaction that is fully signed. However, Alice has not broadcast the Funding Transaction yet, so Bob's Refund Transaction would be rejected by the network if he tried to publish it, as the UTXO it's spending from does not yet exist.
 
-💡 **NOTE: The signature that Alice gives Bob in this message is NOT the same signature that she is using on her version of the commitment transaction!** Since the commitment transactions are symetrical, but not exactly the same, Alice and Bob will be "signing" different transactions, resulting in different signatures. This is actually a *crucial* piece of the security model. While Bob will have **Alice's signature** for **his version** of the initial commitment transaction, Bob will never give Alice **his signature** for **his own** version of the commitment transaction. Therefore, Alice will never be able to publish Bob's version of the commitment! This is also true in the reverse - Bob will never be able to publish Alice's version of the commitment transaction.
+> 💡 **REMINDER:** The signature that Alice gives Bob in this message is NOT the same signature that she uses on her version of the commitment transaction! Since the commitment transactions are asymmetrical but not exactly the same, Alice and Bob will be "signing" different transactions, resulting in different signatures. This is actually a *crucial* piece of the security model. While Bob will have **Alice's signature** for **his version** of the initial commitment transaction, Bob will never give Alice **his signature** for **his** version of the Commitment Transaction. Therefore, Alice will never be able to publish Bob's version of the commitment! This is also true in reverse: Bob will never be able to publish Alice's version of the Commitment Transaction.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/sig_exchange_3.png" alt="sig_exchange_3" width="100%" height="auto">
@@ -67,7 +74,7 @@ At this point, Bob now has a version of the commitment transaction that is fully
 
 ### Funding Signed
 
-Finally, once Bob recieves the `funding_created` message from Alice, he will respond with a `funding_signed` message. This message will include **Bob's signature** for **Alice's version of the initial commitment transaction** (Alice's version of the refund transaction). It's also worth noting that, at this point, we can finally calculate a durable (not temporary) `channel_id`. According to BOLT 2, the `channel_id` is "derived from the funding transaction by combining the `funding_txid` and the `funding_output_index`, using big-endian exclusive-OR".
+Finally, once Bob receives the `funding_created` message from Alice, he will respond with a `funding_signed` message. This message will include **Bob's signature** for **Alice's version of the first Commitment Transaction** (Alice's version of the Refund Transaction). It's also worth noting that, at this point, we can finally calculate a durable (not temporary) `channel_id`. According to BOLT 2, the `channel_id` is "derived from the Funding Transaction by combining the `funding_txid` and the `funding_output_index`, using big-endian exclusive-OR".
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/sig_exchange_4.png" alt="sig_exchange_4" width="100%" height="auto">
@@ -80,7 +87,18 @@ Hopefully, the following points are now clear:
 2) Signatures are exchanged such that each party can only ever broadcast **their own version** of a commitment transaction.
 
 
-## ⚡️ Generate A Signature 
+## ⚡️ Generate A Signature
+
+Now that we've reviewed how signatures are exchanged over the Lightning Protocol, let's implement a function so that we can generate one of those signatures ourselves! As we'll see later, this will be central to our implementation, and we'll use it to sign commitment transactions later in the course.
+
+For this exercise, head over to `src/exercises/keys/channel_key_manager.rs` and find `pub fn sign_transaction_input`. As you can see, this function is within an `impl` block, so it has access to all of the internal components that are available via the `ChannelKeyManager` that we built in an earlier exericse. This function takes the following inputs:
+- `tx`: The transaction we want to sign.
+- `input_index`: The input index of the transaction we're signing.
+- `script`: The witness script that we're signing. We'll pass the 2-of-2 multisig witness script into this function later!
+- `amount`: The value of the UTXO being spent
+- `secret_key`: The private key we're signing with.
+
+The function should return the signature as a `Vec<u8>`, with the sighash type byte appended.
 
 ```rust
 impl ChannelKeyManager {
