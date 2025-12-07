@@ -457,7 +457,7 @@ fn test_13_derive_private_key() {
     let secp_ctx = Secp256k1::new();
 
     // BOLT 3 test vector
-    let base_secret = SecretKey::from_slice(
+    let basepoint_secret = SecretKey::from_slice(
         &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap(),
     )
     .unwrap();
@@ -473,7 +473,7 @@ fn test_13_derive_private_key() {
     .unwrap();
 
     // Derive the private key
-    let derived_privkey = derive_private_key(&base_secret, &per_commitment_point, &secp_ctx);
+    let derived_privkey = derive_private_key(&basepoint_secret, &per_commitment_point, &secp_ctx);
 
     // Both methods should produce the same public key
     assert_eq!(

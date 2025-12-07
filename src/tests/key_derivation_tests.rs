@@ -5,7 +5,7 @@ use bitcoin::secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 #[test]
 fn test_derivation_of_local_public_key() {
 
-    let base_secret = SecretKey::from_slice(
+    let basepoint_secret = SecretKey::from_slice(
         &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap()[..32]
     ).unwrap();
 
@@ -42,7 +42,7 @@ fn test_derivation_of_local_public_key() {
 #[test]
 fn test_derivation_of_local_private_key() {
 
-    let base_secret = SecretKey::from_slice(
+    let basepoint_secret = SecretKey::from_slice(
         &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap()[..32]
     ).unwrap();
 
@@ -64,7 +64,7 @@ fn test_derivation_of_local_private_key() {
 
     let secp = Secp256k1::new();
 
-    let actual_local_privkey = derive_private_key(&base_secret, &per_commitment_point, &secp);
+    let actual_local_privkey = derive_private_key(&basepoint_secret, &per_commitment_point, &secp);
 
     println!("Expected Local Public Key: {:?}", expected_localprivkey);
     println!("Actual Local Public Key: {:?}", actual_local_privkey);
@@ -79,7 +79,7 @@ fn test_derivation_of_local_private_key() {
 #[test]
 fn test_derivation_of_revocation_pubkey() {
 
-    let base_secret = SecretKey::from_slice(
+    let basepoint_secret = SecretKey::from_slice(
         &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap()[..32]
     ).unwrap();
 
@@ -120,7 +120,7 @@ fn test_derivation_of_revocation_pubkey() {
 #[test]
 fn test_derivation_of_revocation_privkey() {
 
-    let base_secret = SecretKey::from_slice(
+    let basepoint_secret = SecretKey::from_slice(
         &hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f").unwrap()[..32]
     ).unwrap();
 

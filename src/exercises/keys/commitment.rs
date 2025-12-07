@@ -95,19 +95,19 @@ pub fn derive_public_key(
 
 /// Exercise 13
 pub fn derive_private_key(
-    base_secret: &SecretKey,
+    basepoint_secret: &SecretKey,
     per_commitment_point: &PublicKey,
     secp_ctx: &Secp256k1<All>,
 ) -> SecretKey {
-    // privkey = base_secret + SHA256(per_commitment_point || basepoint)
-    let basepoint = PublicKey::from_secret_key(secp_ctx, base_secret);
+    // privkey = basepoint_secret + SHA256(per_commitment_point || basepoint)
+    let basepoint = PublicKey::from_secret_key(secp_ctx, basepoint_secret);
 
     let mut engine = Sha256::engine();
     engine.input(&per_commitment_point.serialize());
     engine.input(&basepoint.serialize());
     let res = Sha256::from_engine(engine).to_byte_array();
 
-    base_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
+    basepoint_secret.clone().add_tweak(&Scalar::from_be_bytes(res).unwrap())
 		.expect("Addition only fails if the tweak is the inverse of the key. This is not possible when the tweak contains the hash of the key.")
 }
 
