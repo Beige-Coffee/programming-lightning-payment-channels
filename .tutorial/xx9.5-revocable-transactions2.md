@@ -1,0 +1,430 @@
+# Deriving Revocation Keys
+
+Okay, you've been patient! It's now (finally) time to dig into the cryptographic weeds and derive some **Revocation Public Keys** and **Revocation Private Keys** ourselves. As we work through the equations, feel free to review the diagram below to help contextualize how everything fits together.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocationSteps.png" alt="revocationSteps" width="100%" height="auto">
+</p>
+
+## Deriving Revocation Public Keys
+
+Since we're playing the part of Alice, we'll need to calculate the **both** the **Revocation Public Key** that will go in our `to_local` **and** the **Revocation Public Key** that will go into Bob's `to_local` output? Why? Because we'll need to generate a signature for *Bob's* version of every commitment state, so we need to be able to build an unsigned version of his transactions as well. To do this, we'll need to build a function that implements these steps from the diagram above:
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_pubkeys.png" alt="revocation_pubkeys" width="100%" height="auto">
+</p>
+
+Let's start by converting the above diagram into an equation that we can actually implement. To make things more focused, we'll represent the diagram in terms of calculating our (Alice's) **Revocation Public Key**. 
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_pubkey.png" alt="revocation_pubkey" width="50%" height="auto">
+</p>
+
+This will get a little mathy, but don't worry! We'll step through it together. Below is the general equation for calculating a revocation public key.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_equation.png" alt="revocation_equation" width="60%" height="auto">
+</p>
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_vals.png" alt="revocation_vals" width="50%" height="auto">
+</p>
+
+
+<details>
+  <summary>Click for an in-depth review of the equation</summary>
+
+Recall that **`R`**, **Bob's Revocation Basepoint**, and **`P`**, **Alice's Per Commitment Point**. are just points on the **secp256k1 curve**. NOTE: the below images are just visual representations of the curve and public key. The actual curve looks more like a scatter plot. Additionally, **`h1`** and **`h2`** are just the SHA256 hash of both public keys (in serialized format). The **`||`** symbol means "concatenate".
+
+REMEMBER, you can zoom in to see the visuals better!
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_key_breakdown.png" alt="revocation_key_breakdown" width="100%" height="auto">
+</p>
+
+Once we have **`R`**, **`P`**, **`h1`**, and **`h2`**, we can calculate a new set of public keys by multiplying the public keys (**`R`** and **`P`**) by their respective scalars (**`h1`** and **`h2`**). Remember, to do this, we essentially add the public key to itself many times. For example, we add **`R`** to itself **`h1`** times.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_key_breakdown2.png" alt="revocation_key_breakdown2" width="100%" height="auto">
+</p>
+
+The result of **`R · h1`** and **`P · h2`** will both be new public keys on the secp256k1 curve. Visually, adding two public keys involves the below steps, and the result is a new public key.
+- Drawing a line between the two points.
+- Finding the point on the curve that intersects the line.
+- Finding the reflection of this point across the x-axis.
+
+The resulting public key is our **revocation public key**!
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_key_breakdown3.png" alt="revocation_key_breakdown3" width="100%" height="auto">
+</p>
+
+
+</details>
+
+Here's a quick breakdown of the mathematical operations being performed in this equation:
+1) **SHA256 Hashing**: The serialized public keys **`R`** and **`P`** are concatenated together and hashed. These hashes (**`h1`** and **`h2`**) are treated as very large numbers (scalars) in subsequent operations.
+2) **Elliptic Curve Multiplication (Tweaking)**: The public keys **`R`** and **`P`** are multiplied by the scalar representation of their respective hashes (i.e., the large numbers derived from hashing). This operation essentially adds the public key (**`R`** or **`P`**) to itself **`h1`** or **`h2`** times. This process is commonly referred to as **"tweaking"** a public key, as it modifies the original public key to produce a new one that depends on the scalar.
+3) **Elliptic Curve Addition**: Finally, the tweaked public keys (**`R ⋅ h1 `** and **`P  ⋅ h2`**) are added together using elliptic curve point addition. The result is a new public key that is a unique combination of the original public keys and the hashes. This new key is cryptographically tied to both inputs and cannot be reverse-engineered.
+
+## ⚡️ Derive A Revocation Public Key
+
+Great, now that we have an intuitive understanding of how **Revocation Keys** work, let's write a function to calculate one ourselves! For this exercise, head over to `src/exercises/keys/commitment.rs`. In this file, you'll find the function `derive_revocation_public_key`, which takes the following inputs:
+- `revocation_basepoint`: A Revocation Basepoint.
+- `per_commitment_point`: The Per-Commitment Point for this state.
+- `secp_ctx`: The secp256k1 context for cryptographic operations.
+
+As we learned, the **Revocation Public Key** is derived by combining two public keys: the **Revocation Basepoint** (which remains constant for the channel) and the **Per-Commitment Point** (which is unique to each commitment state).
+
+To successfuly complete this function, you'll have to use the secp256k1 context to calculate the **Revocation Public Key** using the formula we reviewed above (also provided below), which is provided in [BOLT 3](https://github.com/lightning/bolts/blob/master/03-transactions.md#revocationpubkey-derivation).
+
+```
+revocationpubkey = revocation_basepoint * SHA256(revocation_basepoint || per_commitment_point) +
+                   per_commitment_point * SHA256(per_commitment_point || revocation_basepoint)
+```
+
+```rust
+pub fn derive_revocation_public_key(
+    revocation_basepoint: &PublicKey,
+    per_commitment_point: &PublicKey,
+    secp_ctx: &Secp256k1<All>,
+) -> PublicKey {
+    // revocationpubkey = revocation_basepoint * SHA256(revocation_basepoint || per_commitment_point) +
+    //                    per_commitment_point * SHA256(per_commitment_point || revocation_basepoint)
+
+    // First component
+    let mut engine1 = Sha256::engine();
+    engine1.input(&revocation_basepoint.serialize());
+    engine1.input(&per_commitment_point.serialize());
+    let hash1 = Sha256::from_engine(engine1).to_byte_array();
+    let scalar1 = Scalar::from_be_bytes(hash1).expect("Valid scalar");
+    let component1 = revocation_basepoint
+        .mul_tweak(secp_ctx, &scalar1)
+        .expect("Valid tweak");
+
+    // Second component
+    let mut engine2 = Sha256::engine();
+    engine2.input(&per_commitment_point.serialize());
+    engine2.input(&revocation_basepoint.serialize());
+    let hash2 = Sha256::from_engine(engine2).to_byte_array();
+    let scalar2 = Scalar::from_be_bytes(hash2).expect("Valid scalar");
+    let component2 = per_commitment_point
+        .mul_tweak(secp_ctx, &scalar2)
+        .expect("Valid tweak");
+
+    // Combine
+    component1.combine(&component2).expect("Valid combination")
+}
+```
+
+<details>
+  <summary>💡 Hint 💡</summary>
+
+The Revocation Public Key formula has two components that get added together.
+
+> Notice the order of inputs to SHA256 is different for each component!
+
+**Component 1:** `revocation_basepoint * SHA256(revocation_basepoint || per_commitment_point)`
+
+**Component 2:** `per_commitment_point * SHA256(per_commitment_point || revocation_basepoint)`
+
+For this exercise, you'll be making heavy use of the [Sha256 struct](https://docs.rs/bitcoin_hashes/0.18.0/bitcoin_hashes/struct.Sha256.html) provided by Rust Bitcoin. Below, you'll find the steps you need to complete, along with some useful methods.
+
+1. Create a SHA256 hash of two public keys concatenated together.
+   - To create a SHA256 hash engine, use `Sha256::engine()`
+   - To push elements into the hash function, use `.input()`
+   - To finalize the hash, use `Sha256::from_engine(<engine>).to_byte_array()`
+
+2. Convert the hash to a `Scalar` for elliptic curve multiplication.
+   - Use `Scalar::from_be_bytes(<hash>).expect("Valid scalar")`
+
+3. Multiply the public key by that scalar.
+   - Use `.mul_tweak()`, which is available on the `PublicKey` type
+
+4. Combine the two components.
+   - Use `.combine()` to add the two elliptic curve points together
+
+</details>
+
+<details>
+  <summary>Step 1: Calculate the first hash</summary>
+
+First, we need to compute `SHA256(revocation_basepoint || per_commitment_point)`. As we learned earlier, the `||` symbol means concatenation, so we're hashing the two serialized public keys together.
+
+Let's use Rust Bitcoin's `Sha256` engine to build the hash.
+
+```rust
+let mut engine1 = Sha256::engine();
+engine1.input(&revocation_basepoint.serialize());
+engine1.input(&per_commitment_point.serialize());
+let hash1 = Sha256::from_engine(engine1).to_byte_array();
+```
+
+</details>
+
+<details>
+  <summary>Step 2: Convert the hash to a scalar and compute the first component</summary>
+
+Next, to multiply a public key (an elliptic curve point) by our hash, we need to first convert the hash into a `Scalar`. Then, we can use `mul_tweak` to perform the multiplication.
+
+```rust
+let scalar1 = Scalar::from_be_bytes(hash1).expect("Valid scalar");
+let component1 = revocation_basepoint
+    .mul_tweak(secp_ctx, &scalar1)
+    .expect("Valid tweak");
+```
+
+This gives us: `revocation_basepoint * SHA256(revocation_basepoint || per_commitment_point)`
+
+</details>
+
+<details>
+  <summary>Step 3: Calculate the second hash</summary>
+
+Now, let's compute `SHA256(per_commitment_point || revocation_basepoint)`. Notice the order is reversed compared to the first hash!
+
+```rust
+let mut engine2 = Sha256::engine();
+engine2.input(&per_commitment_point.serialize());
+engine2.input(&revocation_basepoint.serialize());
+let hash2 = Sha256::from_engine(engine2).to_byte_array();
+```
+
+</details>
+
+<details>
+  <summary>Step 4: Convert the hash to a scalar and compute the second component</summary>
+
+Same process as before, but now we multiply the `per_commitment_point` by our new scalar!
+
+```rust
+let scalar2 = Scalar::from_be_bytes(hash2).expect("Valid scalar");
+let component2 = per_commitment_point
+    .mul_tweak(secp_ctx, &scalar2)
+    .expect("Valid tweak");
+```
+
+</details>
+
+<details>
+  <summary>Step 5: Combine the two components</summary>
+
+Finally, let's add the two elliptic curve points together using `combine()`. In elliptic curve cryptography, "addition" of points is the `+` operation in our formula.
+
+```rust
+component1.combine(&component2).expect("Valid combination")
+```
+
+This returns the final **Revocation Public Key**!
+
+</details>
+
+## Deriving Revocation Private Keys
+
+Next up, let's review deriving **Revocation Private Keys**. If you look at the diagram above, we'll be building a function that implements this step:
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/revocation_key_diagram.png" alt="revocation_key_diagram" width="50%" height="auto">
+</p>
+
+Just like we did in the previous exercise, we'll need to get convert the above diagram into an equation that we can actually implement.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/rev_priv_key_equation.png" alt="rev_priv_key_equation" width="60%" height="auto">
+</p>
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/rev_priv_key_vars.png" alt="rev_priv_key_vars" width="50%" height="auto">
+</p>
+
+> **NOTE**: The function `generate_revocation_privkey` only takes two variables as inputs. This may seem confusing at first, since the above diagram shows four inputs. However, remember that we can calculate a public key by multiplying the secp256k1 generator point by our private key! So, we really only need two variables, `per_commitment_secret` and `revocation_basepoint_secret` to complete this function.
+
+<details>
+  <summary>Click for an in-depth review of the equation</summary>
+
+To spend from the "Revocation Path", Alice will need to calculate the private key to **Bob's Revocation Public Key**. Since this public key was derived using **Alice's Revocation Basepoint** and **Bob's 1st Per-Commitment Point**, Alice just needs **Bob's 1st Per-Commitment Secret** to be able to derive this key.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/alice_revocation_spend1.png" alt="alice_revocation_spend1" width="100%" height="auto">
+</p>
+
+To see why Alice can derive the Revocation Private Key using **Bob's 1st Per-Commitment Secret**, let's take a closer look at the formula for deriving the **Revocation Public Key**.
+
+Since every public key is can be represented as a scalar (very large number) multiplied by the secp256k1 curve's generator point, `G`. We can write rewrite the equation as follows...
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/alice_revocation_spend2.png" alt="alice_revocation_spend2" width="100%" height="auto">
+</p>
+
+We can then factor out `G`, and we'll get the following...
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/alice_revocation_spend3.png" alt="alice_revocation_spend3" width="100%" height="auto">
+</p>
+
+This gives us the **Revocation Private Key** formula.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/alice_revocation_spend4.png" alt="alice_revocation_spend4" width="100%" height="auto">
+</p
+
+Alice can use her **Revocation Basepoint Secret** with **Bob's 1st Per-Commitment Secret**, which he will provide when they move to a new channel state, to calculate the **Revocation Private Key**.
+
+<p align="center" style="width: 50%; max-width: 300px;">
+  <img src="./tutorial_images/alice_revocation_spend5.png" alt="alice_revocation_spend5" width="100%" height="auto">
+</p>
+
+</details>
+
+
+## ⚡️ Derive A Revocation Private Key
+Let's continue digging in the cryptographic mud! For this exercise, we'll implement a function that derives a **Revocation Private Key** for a previous channel state. Remember, this is only possible when we have *both* secrets: the **Revocation Basepoint Secret** and the **Per-Commitment Secret**.
+
+In our payment channel, this situation only occurs when our counterparty reveals their **Per-Commitment Secret** as part of advancing to a new channel state. Once we have their secret, combined with our own **Revocation Basepoint Secret**, we can compute the private key needed to spend from their Revocation Path if they cheat by publishing an old state.
+
+The formula for the revocation private key mirrors the public key formula, as defined in [BOLT 3](https://github.com/lightning/bolts/blob/master/03-transactions.md#revocationprivkey-derivation):
+```
+revocationprivkey = revocation_basepoint_secret * SHA256(revocation_basepoint || per_commitment_point) +
+                    per_commitment_secret * SHA256(per_commitment_point || revocation_basepoint)
+```
+
+To complete this exercise, implement the `derive_revocation_private_key` function that takes:
+
+- `revocation_basepoint_secret`: Our Revocation Basepoint Secret
+- `per_commitment_secret`: Our counterparty's Per-Commitment Secret from a prior state
+- `secp_ctx`: The secp256k1 context for cryptographic operations
+
+The function should return the derived **Revocation Private Key**.
+
+```rust
+pub fn derive_revocation_private_key(
+    revocation_basepoint_secret: &SecretKey,
+    per_commitment_secret: &SecretKey,
+    secp_ctx: &Secp256k1<All>,
+) -> SecretKey {
+    let revocation_basepoint = PublicKey::from_secret_key(secp_ctx, revocation_basepoint_secret);
+    let per_commitment_point = PublicKey::from_secret_key(secp_ctx, per_commitment_secret);
+
+    // First component
+    let mut engine1 = Sha256::engine();
+    engine1.input(&revocation_basepoint.serialize());
+    engine1.input(&per_commitment_point.serialize());
+    let hash1 = Sha256::from_engine(engine1).to_byte_array();
+    let scalar1 = Scalar::from_be_bytes(hash1).expect("Valid scalar");
+    let key1 = revocation_basepoint_secret
+        .mul_tweak(&scalar1)
+        .expect("Valid tweak");
+
+    // Second component
+    let mut engine2 = Sha256::engine();
+    engine2.input(&per_commitment_point.serialize());
+    engine2.input(&revocation_basepoint.serialize());
+    let hash2 = Sha256::from_engine(engine2).to_byte_array();
+    let scalar2 = Scalar::from_be_bytes(hash2).expect("Valid scalar");
+    let key2 = per_commitment_secret
+        .mul_tweak(&scalar2)
+        .expect("Valid tweak");
+
+    // Combine
+    let scalar_key2 = Scalar::from_be_bytes(key2.secret_bytes()).expect("Valid scalar");
+    key1.add_tweak(&scalar_key2).expect("Valid addition")
+}
+```
+
+<details>
+  <summary>💡 Hint 💡</summary>
+
+Okay, let's dive in!
+
+This is very similar to the previous exerise. That said, the notable difference is that we'll operate on secrets (scalars) instead of public keys (points).
+
+**Component 1:** `revocation_basepoint_secret * SHA256(revocation_basepoint || per_commitment_point)`
+
+**Component 2:** `per_commitment_secret * SHA256(per_commitment_point || revocation_basepoint)`
+
+> Notice that we still need the *public keys* to compute the hashes!
+
+Below, you'll find the steps you need to complete, along with some useful methods.
+
+1. Derive the public keys from the secrets.
+   - Use `PublicKey::from_secret_key(secp_ctx, &secret_key)`
+
+2. Create a SHA256 hash of two public keys concatenated together.
+   - To create a SHA256 hash engine, use `Sha256::engine()`
+   - To push elements into the hash function, use `.input()`
+   - To finalize the hash, use `Sha256::from_engine(<engine>).to_byte_array()`
+
+3. Convert the hash to a `Scalar`.
+   - Use `Scalar::from_be_bytes(<hash>).expect("Valid scalar")`
+
+4. Multiply the secret key by that scalar.
+   - Use `.mul_tweak(&scalar)`, which is available on the `SecretKey` type
+   - Note: Unlike public key tweaking, you don't need to pass the secp256k1 context
+
+5. Add the two tweaked secrets together.
+   - Convert the second tweaked secret to a `Scalar` using `Scalar::from_be_bytes(key2.secret_bytes())`
+   - Use `.add_tweak(&scalar)` on the first tweaked secret
+
+</details>
+
+<details>
+  <summary>Step 1: Derive the public keys from the secrets</summary>
+
+Even though we're computing a private key, we need the corresponding public keys to calculate the hashes (remember - the hash inputs are the same as in the public key derivation).
+
+```rust
+let revocation_basepoint = PublicKey::from_secret_key(secp_ctx, revocation_basepoint_secret);
+let per_commitment_point = PublicKey::from_secret_key(secp_ctx, per_commitment_secret);
+```
+
+</details>
+
+<details>
+  <summary>Step 2: Calculate the first hash and tweak the revocation basepoint secret</summary>
+
+Now, let's compute `SHA256(revocation_basepoint || per_commitment_point)`, convert it to a scalar, and multiply it by the `revocation_basepoint_secret`.
+
+```rust
+let mut engine1 = Sha256::engine();
+engine1.input(&revocation_basepoint.serialize());
+engine1.input(&per_commitment_point.serialize());
+let hash1 = Sha256::from_engine(engine1).to_byte_array();
+let scalar1 = Scalar::from_be_bytes(hash1).expect("Valid scalar");
+let key1 = revocation_basepoint_secret
+    .mul_tweak(&scalar1)
+    .expect("Valid tweak");
+```
+
+</details>
+
+<details>
+  <summary>Step 3: Calculate the second hash and tweak the per-commitment secret</summary>
+
+Now we compute `SHA256(per_commitment_point || revocation_basepoint)` (note the reversed order!) and multiply it by the `per_commitment_secret`.
+
+```rust
+let mut engine2 = Sha256::engine();
+engine2.input(&per_commitment_point.serialize());
+engine2.input(&revocation_basepoint.serialize());
+let hash2 = Sha256::from_engine(engine2).to_byte_array();
+let scalar2 = Scalar::from_be_bytes(hash2).expect("Valid scalar");
+let key2 = per_commitment_secret
+    .mul_tweak(&scalar2)
+    .expect("Valid tweak");
+```
+
+</details>
+
+<details>
+  <summary>Step 4: Add the two tweaked secrets together</summary>
+
+Finally, let's add the two tweaked secrets together. Note, to use `add_tweak()`, we need to convert `key2` to a `Scalar`.
+
+```rust
+let scalar_key2 = Scalar::from_be_bytes(key2.secret_bytes()).expect("Valid scalar");
+key1.add_tweak(&scalar_key2).expect("Valid addition")
+```
+
+This returns the final **Revocation Private Key**, which can be used to spend from the revocation path if your counterparty cheats!
+
+</details>

@@ -2,65 +2,70 @@
 
 ## Introducing Our Penalty Mechanism (Gently)
 
-Now that we have a stronger understanding of asymetric commitment transactions, we can begin to implement our penalty mechanism. Before digging into cryptography and getting in the weeds, let's review how things work at a higher level. To do this, we'll temporarily break a core tenent of Bitcoin and introduce a trusted third party. Don't worry, this trusted third party is *only* for educational purposes, as it will make it much easier to conceptually grasp how the penalty mechanism works. Once we have an intuitive understanding of what is going on, we'll replace the trusted third party with a series of cryptographic operations, making everything trustless again!
+Now that we have a foundational understanding of asymmetric commitment transactions, we can begin to implement our penalty mechanism. Before digging into cryptography and getting in the weeds, let's review how things work at a higher level. To do this, we'll temporarily break a core tenet of Bitcoin and introduce a trusted third party. Don't worry, this trusted third party is ***only*** for educational purposes, as it will make it much easier to conceptually grasp how Lightning's penalty mechanism works. Once we have an intuitive understanding of what's going on, we'll replace the trusted third party with a series of cryptographic operations, making everything trustless again!
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/simple_revocation_key.png" alt="simple_revocation_key" width="100%" height="auto">
 </p>
 
 ### Step 1
-Imagine that, for each commitment transaction, a trusted third party generates a unique public key for Alice and a unique public key for Bob. **Alice and Bob take their respective public keys and add them to the output scripts on their own version of the commitment transaction that pays themselves**. In other words, Alice will add this public key to the output that holds her side of the channel balance. Bob will similarly add his public key to the output on his version of the commitment transaction that pays him. You can see this visually if you look at the image above. Specifically, you'll see that:
-- Alice create two spending paths on her output.
-  - One is locked to the new public key, provided by the third party. We'll call this the **"revocation path"**.
-  - The second is locked to Alice's **delayed payment public key**. It's called the delayed payment public key because, as you can see, Alice cannot spend from this path until after `to_self_delay` blocks have been mined. This delays is specified as a relative delay, which starts once Alice's version of the commitment transaction is mined. 
 
-The reason for adding the delay will soon become clear, if it's not already!
+Imagine that, for each commitment transaction, a trusted third party generates a unique public key for Alice and a unique public key for Bob. **Alice and Bob take their respective public keys and add them to the output scripts on their own version of the commitment transaction that pays themselves** (also known as the `to_local` outputs). In other words, Alice adds this public key to the output that represents her side of the channel balance. Bob similarly adds his public key to the output on his version of the commitment transaction that pays himself. You can see this visually in the image above. Specifically, you'll notice that:
 
-**NOTE: At this point, neither Alice nor Bob know the private keys to either of the public keys that the trusted third party provided**. This is a ***very*** important property because it means that, if either party attempts to broadcast a transaction from the **current state**, neither would know the private key to spend from the "revocation path". This makes it safe to publish the *current* state. Since your counterparty doesn't have the private key to spend from the revocation path, the only possible spending path would be to yourself with your private key! For example, if Alice published her version of the commitment transaction from Channel State 1 ***before*** moving on to Channel State 2, then neither Alice nor Bob can spend from the "revocation path". Therefore, Alice's funds are safe because only she can generate a signature to spend from the delayed payment path!
+- Alice's `to_local` output has the following two spending paths:
+  - One is locked to the new public key provided by the third party. We'll call this the **"Revocation Path"**.
+  - The second is locked to Alice's **Delayed Payment Public Key**. It's called the Delayed Payment Public Key because, as you can see, Alice cannot spend from this path until `to_self_delay` blocks have been mined. This delay is specified as a relative timelock, which starts once Alice's version of the commitment transaction is confirmed.
+
+The reason for adding the delay will become clear, if it's not already!
+
+> ❗**NOTE:** At this point, neither Alice nor Bob know the private keys to either of the public keys that the trusted third party provided. This is a ***very*** important property because it means that, if either party attempts to broadcast a transaction from the **current state**, neither would know the private key to spend from the "revocation path". This makes it safe to publish the *current* state. Since your counterparty doesn't have the private key to spend from the revocation path, the only possible spending path would be via the **Delayed Payment Public Key**, which only you have the private key to! For example, if Alice published her version of the commitment transaction from Channel State 1 ***before*** moving on to Channel State 2, then neither Alice nor Bob can spend from the "revocation path". Therefore, Alice's funds are safe because only she can generate a signature to spend from her Delayed Payment Path!
 
 ### Step 2
+
 When Alice and Bob decide to move to a new channel state, the trusted third party will do the following:
-1) Provide a new public key for both Alice and Bob to use in their new commitment transactions (for the new channel state). As in step 1, these public keys will go in their respective "revocation paths".
-2) Provide Alice and Bob the private keys to **the prior state of the other person's commitment transaction**. For example, in the diagram above, once we reach Channel State 2, Alice will have the private key to spend from Bob's revication path, and Bob will have the private key to spend from Alice's revocation path. **However, neither Alice nor Bob can spend from their own revocation path**.
+
+1. Provide a new public key for both Alice and Bob to use in their new commitment transactions (Channel State 2). As in Step 1, these public keys will go in their respective "Revocation Paths".
+2. Provide Alice and Bob the private keys to **the prior state of the other person's commitment transaction**. For example, in the diagram above, once we reach Channel State 2, Alice will have the private key to spend from Bob's Revocation Path, and Bob will have the private key to spend from Alice's Revocation Path. **However, neither Alice nor Bob can spend from their own revocation path**.
 
 ### Step 3 (If someone cheats)
-If Alice or Bob cheat, that, **by definition**, means they published an old commitment state. For example, let's say we're in **Commitment State 2**, but Alice publishes **her** hold commitment transaction from **Commitment State 1**. She is attempting to steal 1M sats back from Bob by publishing an old transaction that does not have these sats on Bob's side of the channel. Since our trusted third party gave Bob the private key to spend from **Alice's revocation path**, Bob can generate a signature to claim Alice's `to_local` output. Remember, Alice does not have the private key for this spending path, so she cannot claim her output via the **revocation path**.
 
-The above mechanism ensures that old commitment states are effectively revoked, because publishing old commitment states risks losing all of your funds in the channel. Cool, eh? 
+If Alice or Bob cheats, that, **by definition**, means they published an old commitment state. For example, let's say we're in **Commitment State 2**, but Alice publishes **her** commitment transaction from **Commitment State 1**. She is attempting to steal 1M sats back from Bob by publishing an old transaction that does not have these sats on Bob's side of the channel. Since our trusted third party gave Bob the private key to spend from **Alice's revocation path**, Bob can generate a signature to claim Alice's `to_local` output. Remember, Alice does not have the private key for this spending path, so she cannot claim her output via the **Revocation Path**.
+
+The above mechanism ensures that old commitment states are effectively revoked, because publishing old commitment states risks losing all of your funds in the channel. Cool, eh?
 
 #### Question: Why is the delayed payment spending path delayed with a relative timelock? Why do we need a timelock at all?
+
 <details>
   <summary>Answer</summary>
 
-The timelock is a crucial part of Lightning's security model. To see why, let's imagine there was no timelock and Alice cheats by publishing an old commitment state. In this scenario, there is nothing stopping Alice from spending her output immediately! Therefore, even though Bob has the private key to spend from the "revocation path", he wouldn't have sufficient time to act, so it's effectively worthless. Furthermore, you could imagine a scenario where Alice submits the transaction directly to a miner, so Bob will never even see the old commitment state in his mempool! He'll only see it after it's mined. 😞
-
+The timelock is a crucial part of Lightning's security model. To see why, let's imagine there was no timelock and Alice cheats by publishing an old commitment state. In this scenario, there is nothing stopping Alice from spending her output immediately! Therefore, even though Bob has the private key to spend from the "Revocation Path", he wouldn't have sufficient time to act, so it's effectively worthless. Furthermore, you could imagine a scenario where Alice submits the transaction directly to a miner, so Bob will never even see the old commitment transaction in his mempool! He'll only see it after it's mined. 😞
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/revocation_no_timelock.png" alt="revocation_no_timelock" width="80%" height="auto">
 </p>
 
-By adding a relative timelock, **which doesn't start until the transaction is mined**, we guarentee that Bob has sufficient time to spot the transaction if it's mined. For example, if the delay is 2016 blocks (~2 weeks), then Alice cannot re-claim her funds until 2 weeks *after* the transaction has been mined. This gives Bob plently of time to spend from the revocation path, if he has the private key.
+By adding a relative timelock, **which doesn't start until the transaction is mined**, we guarantee that Bob has sufficient time to spot the transaction if it's mined. For example, if the delay is 2016 blocks (~2 weeks), then Alice cannot reclaim her funds until 2 weeks *after* the transaction has been mined. This gives Bob plenty of time to spend from the Revocation Path, if he has the private key.
 
-If you've ever heard that Lightning has a "liveness" requirement - this is it! In other words, so safely operate on the Lightning network, you need to be regularly online and monitoring the blockchain so that you can spot if your counterparty attempts to cheat you. NOTE, you don't need to be "live" 24/7 to operate safely. As we saw in the above example, you just need to come online and check the blocks during the 2-week window to spot if your counterparty cheated. That said, it's still best practice to be consistently connected and monitoring the blockchain.
+If you've ever heard that Lightning has a "liveness" requirement, this is it! In other words, to safely operate on the Lightning Network, you need to be regularly online and monitoring the blockchain so you can spot if your counterparty attempts to cheat you. NOTE: you don't need to be "live" 24/7 to operate safely. As we saw in the above example, you just need to come online and check the blocks during the 2-week window to spot if your counterparty cheated. That said, it's still best practice to be consistently connected and monitoring the blockchain.
 
 </details>
 
 
 ## Introducing Revocation Keys
 
-Okay, now that we've reviewed this gist of how our penalty mechanism works, let's inch our way towards the actual protocol implementation by removing the third party and replacing them with cryptography. Remember, our end goal is to:
-1) Create public keys, which we'll call **revocation public keys**, that Alice or Bob can spend from if their counterparty attempts to cheat.
-2) Neither Alice nor Bob should know the private key to their own **revocation public key**.
-3) When advancing to a new channel state, Alice and Bob should be able to obtain (or, more specifically, calculate) the private key to **their counterparty's revocation public key**. 
+Okay, now that we've reviewed the gist of how our penalty mechanism works, let's inch our way towards the actual protocol implementation by removing the third party and replacing them with cryptography. Remember, our end goal is to:
 
-This way, each party provides a way for the counterparty to claim their funds ***if and only if*** they cheat and publish an old transaction.
+1. Create public keys, which we'll call **Revocation Public Keys**, that Alice or Bob can spend from if their counterparty attempts to cheat.
+2. Ensure that neither Alice nor Bob knows the private key to their own **Revocation Public Key**.
+3. When advancing to a new channel state, enable Alice and Bob to obtain (or, more specifically, calculate) the private key to **their counterparty's Revocation Public Key**.
 
+This way, each party provides a way for their counterparty to claim their funds ***if and only if*** they cheat and publish an old transaction.
 
 ### Calculating A Revocation Public Key And Private Key
 
-Below is a diagram showing, roughly, how Alice and Bob can exchange public and private key information in such a way that they satisfy the properties listed above. In my humble opinion, this diagram does a pretty good job of explaining how the process of revoking old commitment transactions work, while also tying it back to the public and private keys that we created at the beggining of the course.
+Below is a diagram showing, roughly, how Alice and Bob can exchange public and private key information in such a way that they satisfy the properties listed above. When viewing the diagram, also take note of how the keys tie back to the public and private keys that we created at the beginning of the course.
 
-When you see a gear icon (see below for example), it means we're performing some type of algorithm or cryptographic operation. During our first pass through, we'll explain what the algorithm *does*, but we won't review the specific function just yet. After we discuss the overall flow, we'll dig into the actual equations and, of course, implement them ourselves in code!
+When you see a gear icon (see below for example), it means we're performing some type of algorithm or cryptographic operation. During our first pass, we'll explain what the algorithm *produces*, but we won't review how it works just yet. After we discuss the overall flow, we'll dig into the actual equations and, of course, implement them ourselves in code!
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/operation.png" alt="operation" width="5%" height="auto">
@@ -79,449 +84,6 @@ Honestly, this diagram might be an absolute mess and make little sense. If that'
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/diagram_connection.png" alt="diagram_connection" width="100%" height="auto">
-</p>
-
-</details>
-
-⚠️ **DISCLAIMER: The "Steps" outlined below (and in the diagram above) are not stricly meant to convey protocol steps. For example, "Step 4" is not meant to signal that all of the operations outlined in Step 4 happen, more or less, sequentially and as part of one atomic operation. Instead, the "Steps" are meant to help us break up each part of the process into an orderly sequence.**
-
-### Step 1
-By now, Alice and Bob's set of "Channel Keys" should look pretty familiar! For the revocation process, the following secrets and keys are going to be used:
-- **Revocation Basepoint and Revocation Basepoint Secret**: This is a public/private key pair that is constant across the entire length of our payment channel.
-- **Commitment Seed**: This is a random 256-bit secret. As we'll soon see, **we'll use this seed to create a unique public key for each commitment state**.
-  - **Protocol-Defined Starting Index**: BOLT 3 describes how to create a new secret for each commitment state by combining our **commitment seed** with an always-decreasing index, which starts at 281474976710655.  
-
-NOTE: For simplicity, we'll break from the prior color scheme and represent Alice's/Bob's secrets and keys using the following colors:
-- **Alice's** Revocation Basepoint & Basepoint Secret: **Blue**
-- **Alice's** Per Commitment Point and Per Commitment Secret: **Light Blue**
-- **Alice's** Revocation Secret and Revocation Public Key: **Purple**
-- **Bob's** Revocation Basepoint & Basepoint Secret: **Red**
-- **Bob's** Per Commitment Point and Per Commitment Secret: **Light Red**
-- **Bob's** Revocation Secret and Revocation Public Key: **Gold**
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_step_1.png" alt="revocation_step_1" width="100%" height="auto">
-</p>
-
-### Step 2
-When Alice and Bob open a channel, **they will create a unique public/private key pair for each commitment transaction, known as the **Per-Commitment Point** and **Per-Commitment Secret**. We'll review the actual key derivation process shortly, but, for now, it's sufficient to understand that each public/private key pair is created by running your **commitment seed** and **index** through an algorithm. Per BOLT 3, all channels start with an index of 281474976710655, and this index is decremented by 1 for each new state.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_step_2.png" alt="revocation_step_2" width="100%" height="auto">
-</p>
-
-### Step 3
-Once Alice and Bob create their respective **Per-Commitment Points** and **Per-Commitment Secrets** for channel state 1, they will exchange the following keys...
-- Alice will give Bob her:
-  - **Revocation Basepoint**
-  - **Per-Commitment Point** for Channel State 1.
-- Bob will give Alice his:
-  - **Revocation Basepoint**
-  - **Per-Commitment Point** for Channel State 1.
-
-Remember, the **Revocation Basepoint** does not change during the entire duration of channel operation! We'll see why this is useful in just a moment.
-
-Once exchanged, each party can combine **their partner's Revocation Basepoint** with **their Per-Commitment Point**, creating a new public key **that neither of them know the secret key to**. This is what they will use in the revocation spending path of their `to_local` output!
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_step_3.png" alt="revocation_step_3" width="100%" height="auto">
-</p>
-
-### Step 4
-When Alice and Bob decide to advance to a new channel state, they will exchange the following keys:
-- **The Current State's Per-Commitment Secret**
-- **The Next State's Per-Commitment Point**: To calculate the next Per Commitment Point, each channel party will first calculate the next state's Per Commitment Secret by running their **commitment seed** and **the new channel state index** through the [bit-flipping algorithm described in BOLT 3](https://github.com/lightning/bolts/blob/master/03-transactions.md#per-commitment-secret-requirements). Once they get the Per Commitment Secret, they can simply multiply that by the generator point, *G*, to get the Per Commitment Point.
-
-By exchaning this information, each party provides **their counterparty** with the neccessary information (the prior state's per-commitment secret) to calculate the **their revocation public key**. In other words, Alice gives Bob the information needed for Bob to calculate Alice's **revocation private key** from their prior state. Therefore, Bob can spend from Alice's revocation path if she ever publishes the associated commitment transaction, which is now considered old since they are moving to a new state.
-
-To make this more explicit, note that the revocation key that Alice uses in her version of the transaction is created using **Bob's Revocation Basepoint** and **Alice's Per Commitment Point**. Since Bob will NEVER reveal his **Revocation Basepoint Secret** to Alice, she will never be able to calculate the private key to the public key in her spending path. However, once Bob receives **Alice's Per Commitment Point**, he can calculate the private key because he also, of course, knows **his Revocation Basepoint Secret**.
-
-Also, they give their counterparty the next **Per Commitment Point**. The reason for this is not exactly obvious in the visual, since Bob doesn't need **Alice's Per Commitment Point** to create the revocation public key in his transaction. However, he does need it to calculate the revocation public key in Alice's version. Since Bob needs to provide Alice with a signature for every new commitment state, he needs to build her transactions locally to create that signature!
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_step_4.png" alt="revocation_step_4" width="100%" height="auto">
-</p>
-
-## ⚡️ Generate A Revocation Public Key
-For this exercise, we'll get our hands dirty and implement a function that creates a revocation public key for a given channel state.
-```rust
-pub fn generate_revocation_pubkey(
-    countersignatory_basepoint: secp256k1PublicKey,
-    per_commitment_point: secp256k1PublicKey,
-) -> secp256k1PublicKey {
-  
-  // Step 1: Calculate `h1` and `h2`
-
-  // Step 2: Tweak the Countersignatory Revocation Basepoint and Per Commitment Point
-
-  // Step 3: Add & Return the Tweaked Public Key
-  
-}
-```
-<details>
-<summary>Step 1: Calculate h1 and h2</summary>
-
-First, we'll need to calculate `h1` and `h2`. To calculate `h1`, we must obtain the SHA256 of the countersignatory's revocation basepoint concatenated with our per-commitment point (in that order).
-
-We can calcuate `h2` by obtaining the SHA256 of the per-commitment point concatenated with the countersignatory's revocation basepoint (in that order).
-
-A helper function has been provided for you, which you can use to hash two `secp256k1PublicKey` types.
-
-```rust
-pub fn hash_pubkeys(key1: &secp256k1PublicKey, key2: &secp256k1PublicKey) -> [u8; 32] {
-  // Computes the SHA-256 hash of the two public keys in the order of key1 || key2
-  // Returns a 32-byte array representing the hash of the concatenated serialized public keys.
-}
-```
-
-<details>
-  <summary>Click here to learn how to calculate the SHA256 yourself without the helper function!</summary>
-
-Hello ambitious learner! If you clicked this, you probably want to learn how to calculate the SHA256 of the keys yourself. Let's learn how to do it...
-
-First, you will have to define a SHA256 object that can do the hashing for you. In **Rust**, we need to make this object **mutable**, since we will be chaning its internal state.
-
-```rust
-let mut sha = Sha256::engine();
-```
-
-Next, we'll need to input the actual data we want to hash - in this case, our public keys! However, we can't just pass the in the `PublicKey` type, since that is a **rust-bitcoin** type and contains more information than we need. Instead, we want to pass in the serialized version of the key. We can do that by using the below notation. NOTE: we pass in a reference to the key, which is indicated by putting a `&` in front of the `key`. This tells Rust that we want to pass in a pointer to the data, enuring that the `input()` function does not take ownerhsip of the data. 
-
-```rust
-sha.input(&key.serialize());
-```
-
-Finally, once we've added **both keys in the correct order**, we can calculate the SHA256 using the below notation. To get an array of bytes, which we'll ultimately need for the next step, we will need to call `to_byte_array()`.
-
-```rust
-let result = Sha256::from_engine(sha).to_byte_array();
-```
-
-In summary, we can calculate the hash of two public keys by using the following code:
-
-```rust
-let mut sha = Sha256::engine();
-
-sha.input(&key1.serialize());
-sha.input(&key2.serialize());
-
-let hash = Sha256::from_engine(sha).to_byte_array()
-```
-</details>
-</details>
-
-<details>
-<summary>Step 2: Tweak the Countersignatory Revocation Basepoint and Per Commitment Point</summary>
-
-Once we've obtained `h1` and `h2`, we'll need to use them to tweak the countersignatory's Revocation Basepoint and Per Commitment Point. Remember, tweaking a public key essentially means adding the public key to itself many times. A helper function, `pubkey_multipication_tweak`, has been provided for you.
-
-```rust
-pub fn pubkey_multipication_tweak(pubkey1: PublicKey, sha_bytes: [u8; 32]) -> PublicKey {
-  // Multiplies a public key by a scalar derived from a 32-byte hash.
-  // Returns the resulting public key after scalar multiplication.
-}
-```
-
-<details>
-  <summary>Click here to learn how to tweak a public key without the helper function!</summary>
-
-Hello again, ambitious learner!
-
-First, you will have to define a `Secp256k1` that can perform elliptic curve operation over the Secp256k1 curve. You can do this by using the following notation.
-
-```rust
-let secp = Secp256k1::new();
-```
-
-For this function, the public key input is the type `PublicKey`, which is defined in the `bitcoin::secp256k1` crate. This type comes equipped with the `mul_tweak` method, which requires a `Secp256k1` context for curve operations and a `Scalar` value. Both of these inputs are passed as references, as we do not want the method to take ownership of the variables. If you're unfamiliar with the concept of ownership in Rust, that's okay. Just remember to add the `&` before the variables when passing them in!
-
-Oh, it's also important to note that `mul_tweak` returns a `Result` type, so we have to call `unwrap()` to retrieve the resulting value.
-
-```rust
-let pubkey_tweak = pubkey1.mul_tweak(&secp, &scalar_tweak).unwrap();
-```
-
-Now, you may be wondering, "where does the scalar_tweak come from?". Let's discuss that now! As an input to this function, we're passing in the bytes returned from the prior SHA256 operation. However, before we can tweak the public key, we need to convert the bytes to a scalar. We can do this using the 'from_be_bytes' method on the `Scalar` type, provided by the `bitcoin::secp256k1` crate. Again, similar to above, we have to unwrap the result using `.unwrap()`.
-
-```rust
-let scalar_tweak = &Scalar::from_be_bytes(sha_bytes).unwrap()
-```
-
-In summary, you can tweak a public key by using the following code:
-
-```rust
-let secp = Secp256k1::new();
-let scalar_tweak = &Scalar::from_be_bytes(sha_bytes).unwrap();
-let pubkey_tweak = pubkey.mul_tweak(&secp, &scalar_tweak).unwrap();
-```
-
-</details>
-
-</details>
-
-<details>
-<summary>Step 3: Add & Return the Tweaked Public Keys</summary>
-
-Finally, now that we have our two tweaked public keys, `R` and `P`, we can add them together to get the revocation public key that we'll embed in our script.
-
-A helper function, `add_pubkeys`, has been provided to you to add two public keys together.
-```rust
-pub fn add_pubkeys(key1: &PublicKey, key2: &PublicKey) -> PublicKey {
-  // Adds two public keys.
-  // Returns the resulting public key after addition.
-
-}
-```
-
-<details>
-  <summary>Click here to learn how to add two public keys without the helper function!</summary>
-
-This is a little simpler than the previous helper functions! To add two public keys, which are both of type `bitcoin::secp256k1::PublicKey`, we can use the `combine()` method, which is available on the public key. All we need to do is pass a reference to the public key we'd like to add, and unwrap the result.
-
-```rust
-let pk = key1.combine(&key2).unwrap();
-```
-
-</details>
-</details>
-
-Since we're playing the part of Alice, we'll need to calculate the revocation key that will go in our `to_local` spending path. To do this, we'll build a function that implements this step in the diagram above:
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_pubkey.png" alt="revocation_pubkey" width="50%" height="auto">
-</p>
-
-Let's start by converting the above diagram into an equation that we can actually implement. This will get a little mathy, but don't worry! We'll step through it together. Below is the general equation for calculating a revocation public key.
-
-Note, for clarity, we've included Alice and Bob's names in front of their respective keys so that it's easy to map it back to the image above. However, this function, once complete, could be used by Alice, Bob, or anyone. You just need to specify the right **local** (Alice, in this case) and **remote** (Bob, in this case) keys.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_equation.png" alt="revocation_equation" width="60%" height="auto">
-</p>
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_vals.png" alt="revocation_vals" width="50%" height="auto">
-</p>
-
-
-<details>
-  <summary>Click for an in-depth review of the equation</summary>
-
-Recall that **`R`**, **Bob's Revocation Basepoint**, and **`P`**, **Alice's Per Commitment Point**. are just points on the **secp256k1 curve**. NOTE: the below images are just visual representations of the curve and public key. The actual curve looks more like a scatter plot. Additionally, **`h1`** and **`h2`** are just the SHA256 hash of both public keys (in serialized format). The **`||`** symbol means "concatenate".
-
-REMEMBER, you can zoom in to see the visuals better!
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_key_breakdown.png" alt="revocation_key_breakdown" width="100%" height="auto">
-</p>
-
-Once we have **`R`**, **`P`**, **`h1`**, and **`h2`**, we can calculate a new set of public keys by multiplying the public keys (**`R`** and **`P`**) by their respective scalars (**`h1`** and **`h2`**). Remember, to do this, we essentially add the public key to itself many times. For example, we add **`R`** to itself **`h1`** times.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_key_breakdown2.png" alt="revocation_key_breakdown2" width="100%" height="auto">
-</p>
-
-The result of **`R · h1`** and **`P · h2`** will both be new public keys on the secp256k1 curve. Visually, adding two public keys involves the below steps, and the result is a new public key.
-- Drawing a line between the two points.
-- Finding the point on the curve that intersects the line.
-- Finding the reflection of this point across the x-axis.
-
-The resulting public key is our **revocation public key**!
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_key_breakdown3.png" alt="revocation_key_breakdown3" width="100%" height="auto">
-</p>
-
-
-</details>
-
-Here's a quick breakdown of the mathematical operations being performed in this equation:
-1) **SHA256 Hashing**: The serialized public keys **`R`** and **`P`** are concatenated together and hashed. These hashes (**`h1`** and **`h2`**) are treated as very large numbers (scalars) in subsequent operations.
-2) **Elliptic Curve Multiplication (Tweaking)**: The public keys **`R`** and **`P`** are multiplied by the scalar representation of their respective hashes (i.e., the large numbers derived from hashing). This operation essentially adds the public key (**`R`** or **`P`**) to itself **`h1`** or **`h2`** times. This process is commonly referred to as **"tweaking"** a public key, as it modifies the original public key to produce a new one that depends on the scalar.
-3) **Elliptic Curve Addition**: Finally, the tweaked public keys (**`R ⋅ h1 `** and **`P  ⋅ h2`**) are added together using elliptic curve point addition. The result is a new public key that is a unique combination of the original public keys and the hashes. This new key is cryptographically tied to both inputs and cannot be reverse-engineered.
-
-
-## ⚡️ Generate A Revocation Private Key
-For this exercise, we'll continue digging in the cryptographic mud and implement a function that creates a revocation private key for a previous channel state. For this exercise, you can imagine the inputs being *Alice's* Revocation Basepoint Secret and Bob's Per Commitment Secret from a prior state.
-
-```rust
-fn generate_revocation_privkey(countersignatory_per_commitment_secret: &SecretKey, revocation_base_secret: &SecretKey) -> SecretKey {
-
-  // Step 1: Calculate Public Keys R and P
-
-  // Step 2: Calculate Hashes h1 and h2
-
-  // Step 3: Tweak the Secrets with Hashes
-
-  // Step 4: Add and Return the Tweaked Secrets
-}
-```
-<details>
-<summary>Step 1: Calculate Public Keys R and P</summary>
-
-At this point in our payment channel operations, we have the secrets for both public keys. Therefore, we can create the public keys themselves by multiplying those secrets by the generator point, **G** of the secp256k1 curve.
-
-A helper function, `pubkey_from_secret`, has been provided to help you do this!
-
-```rust
-pub fn pubkey_from_secret(secret: SecretKey) -> secp256k1PublicKey {
-  // given a secret key, returns a public key on the secp256k1 curve
-}
-```
-<details>
-  <summary>Click here to learn how to obtain a public key from a secret key without the helper function!</summary>
-
-We can obtain a public key from a secret key by using the below notation, provided by `bitcoin::secp256k1::PublicKey`.
-
-```rust
-let secp = Secp256k1::new();
-let pubkey = bitcoin::secp256k1::PublicKey::from_secret_key(&secp, &secret)
-```
-
-</details>
-
-</details>
-
-
-
-<details>
-<summary>Step 2: Calculate Hashes h1 and h2</summary>
-
-Next, we'll need to calculate `h1` and `h2` again so that we can use the scalar representation to tweak each private key. Remember, you can use the `hash_pubkeys` helper function to do this!
-
-```rust
-pub fn hash_pubkeys(key1: &secp256k1PublicKey, key2: &secp256k1PublicKey) -> [u8; 32] {
-  // Computes the SHA-256 hash of the two public keys in the order of key1 || key2
-  // Returns a 32-byte array representing the hash of the concatenated serialized public keys.
-}
-```
-Alternatively, you can use **rust-bitcoin** directly!
-
-```rust
-let mut sha = Sha256::engine();
-
-sha.input(&key1.serialize());
-sha.input(&key2.serialize());
-
-let hash = Sha256::from_engine(sha).to_byte_array()
-```
-</details>
-
-<details>
-<summary>Step 3: Tweak the Secrets with Hashes</summary>
-
-Now that we have the scalars, we can tweak the private keys themselves. Just as before, a helper function has been provided to assist.
-
-```rust
-pub fn privkey_multipication_tweak(secret: SecretKey, sha_bytes: [u8; 32]) -> SecretKey {
-  // Multiplies a private key by a scalar derived from a 32-byte hash.
-  // Returns the resulting private key after scalar multiplication.
-}
-```
-
-<details>
-  <summary>Click here to learn how to tweak a private key without the helper function!</summary>
-
-From a Rust notation perspective, tweaking a private key is very similar to tweaking a public key. The largest notable difference is that we do not need a `Secp256k1` context like we did previously. This is because tweaking a private key is essentially scalar multiplication, which does not involve elliptic curve point multiplication.
-
-```rust
-let scalar = Scalar::from_be_bytes(sha_bytes).unwrap();
-let privkey_tweak = secret.mul_tweak(&scalar).unwrap();
-```
-
-</details>
-
-</details>
-
-
-<details>
-<summary>Step 4: Add and Return the Tweaked Secrets</summary>
-
-Finally, once we have both of the tweaked private keys, we can add them together, giving us the secret key to the revocation public key that is actually embedded in the bitcoin script. A helper function, `add_privkeys` is available for you to use.
-
-```rust
-pub fn add_privkeys(key1: &SecretKey, key2: &SecretKey) -> SecretKey {
-  // Adds two private keys (scalars).
-  // Returns the a new private key
-
-}
-```
-
-<details>
-  <summary>Click here to learn how to add private keys without the helper function!</summary>
-
-To add two private keys, which are both of type `bitcoin::secp256k1::SecretKey`, we can use the `add_tweak()` method, which is available on the secret key. All we need to do is pass the scalar we'd like to add.
-
-To get the scalar, we can convert the key to its byte representation and then turn it into a scalar. This is similar to what we've done previously. Then, we can pass a reference to the scalar to the private key's `add_tweak` method and, as always, unwrap the result.
-
-```rust
-let tweak = Scalar::from_be_bytes(key2.secret_bytes()).unwrap();
-let key3 = key1.add_tweak(&tweak).unwrap();
-```
-
-</details>
-
-</details>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-If you look at the diagram above, we'll be building a function that implements this step:
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/revocation_key_diagram.png" alt="revocation_key_diagram" width="50%" height="auto">
-</p>
-
-Just like we did in the previous exercise, we'll need to get convert the above diagram into an equation that we can actually implement.
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/rev_priv_key_equation.png" alt="rev_priv_key_equation" width="60%" height="auto">
-</p>
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/rev_priv_key_vars.png" alt="rev_priv_key_vars" width="50%" height="auto">
-</p>
-
-***NOTE***: The function `generate_revocation_privkey` only takes two variables as inputs. This may seem confusing at first, since the above diagram shows four inputs. However, remember that we can calculate a public key by multiplying the secp256k1 generator point by our private key! So, we really only need two variables, `per_commitment_secret` and `revocation_basepoint_secret` to complete this function.
-
-<details>
-  <summary>Click for an in-depth review of the equation</summary>
-
-<p align="center" style="width: 50%; max-width: 300px;">
-  <img src="./tutorial_images/alice_revocation_spend.png" alt="alice_revocation_spend" width="100%" height="auto">
 </p>
 
 </details>
