@@ -3,11 +3,11 @@
 Wow! We've come a long way! Now, let's build one of the most complex scripts in Lightning - the **offered HTLC script**! As we just learned, this script is used when offering an HTLC to your counterparty. 
 
 For this exercise, head over to `src/exercises/scripts/htlc.rs`. In this file, you'll find the `create_offered_htlc_script` function, which takes the following inputs:
+
 - `revocation_pubkey`: Our **Revocation Public Key**, which is created by combining our counterparty's **Revocation Basepoint** with our **Per-Commitment Point**.
 - `local_htlcpubkey`: Our **HTLC Public Key**, which is derived from our **HTLC Basepoint** and our **Per-Commitment Point**.
-- `remote_htlcpubkey`:Our counterparty's **HTLC Public Key**, which is derived from their **HTLC Basepoint** and our **Per-Commitment Point**.
+- `remote_htlcpubkey`: Our counterparty's **HTLC Public Key**, which is derived from their **HTLC Basepoint** and our **Per-Commitment Point**.
 - `payment_hash`: The hash of the payment preimage.
-
 ```rust
 pub fn create_offered_htlc_script(
     revocation_pubkey: &PublicKey,
@@ -15,10 +15,10 @@ pub fn create_offered_htlc_script(
     remote_htlcpubkey: &PublicKey,
     payment_hash: &[u8; 32],
 ) -> ScriptBuf {
-    
+
     let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
     let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
-    
+
     let script = Builder::new()
         .push_opcode(opcodes::OP_DUP)
         .push_opcode(opcodes::OP_HASH160)
@@ -47,15 +47,37 @@ pub fn create_offered_htlc_script(
         .push_opcode(opcodes::OP_ENDIF)
         .push_opcode(opcodes::OP_ENDIF)
         .into_script();
-    
+
     script
 }
 ```
+
+<details>
+  <summary>💡 Hint 💡</summary>
+
+Don't worry - you're not expected to be able to code this without following the specification!
+
+For this exercise, head over to the [BOLT](https://github.com/lightning/bolts/blob/master/03-transactions.md#offered-htlc-outputs) and try implementing the script exactly as it shows here.
+
+Here are the `Builder` methods you'll need:
+
+- `Builder::new()`: Creates a new script builder.
+- `.push_opcode(opcodes::OP____)`: Pushes an opcode onto the script (e.g., `OP_DUP`, `OP_HASH160`, `OP_IF`, `OP_CHECKSIG`).
+- `.push_slice(&[u8])`: Pushes raw bytes onto the script (e.g., serialized public keys, hashes).
+- `.push_int(i64)`: Pushes an integer onto the script (e.g., `2` for the 2-of-2 multisig).
+- `.into_script()`: Converts the builder into a `ScriptBuf`.
+
+You'll also need these helper functions for hashing:
+
+- `Ripemd160::hash(data).to_byte_array()`: Takes the RIPEMD160 hash of data and returns it as a byte array.
+- `PubkeyHash::hash(&pubkey.serialize())`: Hashes a serialized public key using HASH160 (SHA256 + RIPEMD160).
+
+</details>
+
 <details>
   <summary>Step 1: Prepare the Hash Values</summary>
 
-We'll start by preparing two hash values that will be used in the script. The first is the RIPEMD160 of the payment (preimage) hash. The second is the public key hash of the **Revocation Public Key**.
-
+Let's start by preparing the two hash values that will be used in the script. The first is the RIPEMD160 of the payment (preimage) hash. The second is the public key hash of the **Revocation Public Key**.
 ```rust
 let payment_hash160 = Ripemd160::hash(payment_hash).to_byte_array();
 let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
@@ -66,10 +88,9 @@ let revocation_pubkey_hash = PubkeyHash::hash(&revocation_pubkey.serialize());
 <details>
   <summary>Step 2: Start the Revocation Check</summary>
 
-Just as we did earlier, we begin the proces of creating a `ScriptBuf` by using the `Builder` object in Rust Bitcoin.
+Just as we did earlier, we begin the process of creating a `ScriptBuf` by using the `Builder` object in Rust Bitcoin.
 
-The HTLC offerer script begins by checking if the provided value is equal to the hash of the **Revocation Public Key**. To do this, we use `DUP HASH160 <hash> EQUAL` to check if the two data elements are equal.
-
+The HTLC offerer script begins by checking if the provided value is equal to the hash of the **Revocation Public Key**. To do this, we use `DUP HASH160 <hash> EQUAL` to check if the two data elements are equal. If they are, we check if the signature is valid for the **Revocation Public Key**.
 ```rust
 Builder::new()
     .push_opcode(opcodes::OP_DUP)
@@ -88,8 +109,7 @@ Builder::new()
 
 If the data provided (when hashed) is not equal to the **Hashed Revocation Public Key**, then we need to determine if this is a success spend (with preimage) or a timeout spend. We can do this by checking the size of the witness element.
 
-If it's equal to 32, then we know it's a preimage! If it not, then it's a signature (~71-73 bytes), and we'll want to execute the timeout path.
-
+If it's equal to 32, then we know it's a preimage! If it's not, then it's a signature (~71-73 bytes), and we'll want to execute the timeout path.
 ```rust
 .push_slice(remote_htlcpubkey.serialize())
 .push_opcode(opcodes::OP_SWAP)
@@ -105,7 +125,6 @@ If it's equal to 32, then we know it's a preimage! If it not, then it's a signat
   <summary>Step 4: Handle the Timeout Path (2-of-2 Multisig)</summary>
 
 As we learned earlier, the timeout path requires both parties to cooperate using a 2-of-2 multisig, ensuring that the HTLC offerer (Alice) is unable to expire the HTLC early.
-
 ```rust
 .push_opcode(opcodes::OP_DROP)
 .push_int(2)
@@ -116,21 +135,12 @@ As we learned earlier, the timeout path requires both parties to cooperate using
 .push_opcode(opcodes::OP_ELSE)
 ```
 
-Breaking this down:
-- `DROP` removes the size value from the stack
-- We push `2` (number of signatures required)
-- `SWAP` rearranges the stack for CHECKMULTISIG
-- We push the local HTLC pubkey
-- We push `2` again (total number of public keys)
-- `CHECKMULTISIG` verifies we have 2 valid signatures from the 2 pubkeys
-
 </details>
 
 <details>
   <summary>Step 5: Handle the Success Path (with Preimage)</summary>
 
 Finally, if the witness element provided was exactly 32 bytes, then we execute the success path:
-
 ```rust
 .push_opcode(opcodes::OP_HASH160)
 .push_slice(&payment_hash160)
@@ -139,20 +149,12 @@ Finally, if the witness element provided was exactly 32 bytes, then we execute t
 .push_opcode(opcodes::OP_ENDIF)
 ```
 
-Here's the flow:
-- `HASH160` hashes the 32-byte preimage (SHA256 + RIPEMD160)
-- We compare it to our stored payment hash
-- `EQUALVERIFY` checks they match and fails if not
-- `CHECKSIG` verifies the signature using the remote HTLC pubkey (already on stack from Step 3)
-- `ENDIF` closes the inner IF/ELSE (success vs timeout)
-
 </details>
 
 <details>
   <summary>Step 6: Close the Outer Conditional</summary>
 
-We'll finish things up by closing the outer IF/ELSE structure, which separated revocation path from the other paths:
-
+We'll finish things up by closing the outer IF/ELSE structure, which separated the revocation path from the other paths:
 ```rust
 .push_opcode(opcodes::OP_ENDIF)
 .into_script()
@@ -165,17 +167,16 @@ We'll finish things up by closing the outer IF/ELSE structure, which separated r
 
 Next up, let's build the **HTLC Timeout Transaction**! Remember, this transaction enables the **HTLC offerer** to claim back their funds after the HTLC times out.
 
-For this exercise, head over to `src/exercises/transactions/htlc/rs`.
+For this exercise, head over to `src/exercises/transactions/htlc.rs`.
 
+The `create_htlc_timeout_transaction` function takes the following parameters:
 
-The `create_htlc_timeout_transaction` takes the following parameters:
 - `htlc_outpoint`: The outpoint (txid + vout) of the HTLC output we're spending from. 
 - `htlc_amount`: The amount locked in the HTLC (in satoshis).
 - `cltv_expiry`: The absolute block height when this HTLC expires.
 - `local_keys`: Our commitment keys. See the dropdown below for more information.
 - `to_self_delay`: The number of blocks that we must wait before we can claim our funds using the **Delayed Payment Public Key** path.
 - `feerate_per_kw`: The fee rate in satoshis per 1000 weight units.
-
 ```rust
 pub fn create_htlc_timeout_transaction(
     htlc_outpoint: OutPoint,
@@ -188,8 +189,6 @@ pub fn create_htlc_timeout_transaction(
     let fee = calculate_htlc_tx_fee(feerate_per_kw);
     let output_amount = htlc_amount.saturating_sub(fee);
 
-    let secp = Secp256k1::new();
-
     // Create to_local script
     let to_local_script = create_to_local_script(
         &local_keys.revocation_key,
@@ -198,16 +197,16 @@ pub fn create_htlc_timeout_transaction(
     );
 
     let tx_in = TxIn {
-            previous_output: htlc_outpoint,
-            script_sig: ScriptBuf::new(),
-            sequence: Sequence::ZERO,
-            witness: Witness::new(),
-        };
+        previous_output: htlc_outpoint,
+        script_sig: ScriptBuf::new(),
+        sequence: Sequence::ZERO,
+        witness: Witness::new(),
+    };
 
     let tx_out = TxOut {
-            value: Amount::from_sat(output_amount),
-            script_pubkey: to_local_script.to_p2wsh(),
-        };
+        value: Amount::from_sat(output_amount),
+        script_pubkey: to_local_script.to_p2wsh(),
+    };
 
     Transaction {
         version: Version::TWO,
@@ -218,28 +217,63 @@ pub fn create_htlc_timeout_transaction(
 }
 ```
 
+<details>
+  <summary>💡 Hint 💡</summary>
+
+This function is relatively similar to `create_commitment_transaction`, which we implemented earlier.
+
+To successfully complete this exercise, you'll need to build the **HTLC Timeout Transaction**. Below are a few hints to help you on your journey.
+
+1. **Calculate the fee and output amount**
+   - First, we'll need to calculate the fee for this transaction. This code has already been provided for you, so no need to worry about this!
+
+2. **Determine output amount**
+   - Since this transaction only has one output, we'll need to subtract the fee from `htlc_amount`.
+
+3. **Create the output script**
+   - The output uses the same `to_local` script structure we built earlier. You can use the `create_to_local_script()` function from earlier in this course!
+
+4. **Build the transaction input**
+   - Before we can create a `Transaction`, we need to define an input of type `TxIn` with the following fields:
+     - `previous_output`: Set to `htlc_outpoint`
+     - `script_sig`: Empty (`ScriptBuf::new()`) since this is SegWit
+     - `sequence`: Set to `Sequence::ZERO`
+     - `witness`: Empty for now (`Witness::new()`)
+
+5. **Build the transaction output**
+   - Next, we'll need to build our output of type `TxOut` with the following fields:
+     - `value`: Use `Amount::from_sat(output_amount)`
+     - `script_pubkey`: Use the script you just created! Make sure to call `.to_p2wsh()` to convert the witness script to an output script.
+
+6. **Build the `Transaction` struct** with:
+   - `version: Version::TWO`
+   - `lock_time: LockTime::from_consensus(cltv_expiry)`
+   - `input`: A vector containing your `TxIn`
+   - `output`: A vector containing your `TxOut`
+
+7. **Return the transaction!**
+
+</details>
 
 <details>
   <summary>Step 1: Calculate Fees and Output Amount</summary>
 
-First, we'll need to calculate the transaction fee and determine how many bitcoin will go into the output. Remember, this course has been focusing on commitment transactions that do not support anchor outputs or zero-fee commitments, so we'll need to deduce the fee from the amount.
+First, we'll need to calculate the transaction fee and determine how many bitcoin will go into the output. Remember, this course has been focusing on commitment transactions that do not support anchor outputs or zero-fee commitments, so we'll need to deduct the fee from the amount.
 
-If you recall from earlier, we learned that **HTLC Timeout Transactions** have a fixed weight of 663, which you can also confirm in the [Fees](https://github.com/lightning/bolts/blob/master/03-transactions.md#fees) section of BOLT 3. Now that we've HTLC Success Transactions, this should make intuitive sense, as the size of the transaction will not change - regardless of how many bitcoin are being sent or who is sending them!
+If you recall from earlier, we learned that **HTLC Timeout Transactions** have a fixed weight of 663, which you can also confirm in the [Fees](https://github.com/lightning/bolts/blob/master/03-transactions.md#fees) section of BOLT 3. Now that we've covered HTLC Timeout Transactions, this should make intuitive sense, as the size of the transaction will not change - regardless of how many bitcoin are being sent or who is sending them!
 
-A helper function, `calculate_htlc_timeout_tx_fee` is available to use for this exercise. You can see the function definition below or view it in `src/exercises/transactions/fees.rs`.
+A helper function, `calculate_htlc_tx_fee`, is provided for you in this exercise. You can see the function definition below or view it in `src/exercises/transactions/fees.rs`.
 
-Once we have the fee for this transaction, which depends on the feerate, we'll determine the output amount by subtracting it from the `htlc_amount`. Here, we're using`saturating_sub`, as this prevents underflow. In other words, if the fee were larger than the HTLC amount, we'd get 0 instead of a panic. That said, in practice, this should not happen, as we would have "trimmed" this HTLC and not created an output for it.
-
+Once we have the fee for this transaction, which depends on the feerate, we'll determine the output amount by subtracting it from the `htlc_amount`. Here, we're using `saturating_sub`, as this prevents underflow. In other words, if the fee were larger than the HTLC amount, we'd get 0 instead of a panic. That said, in practice, this should not happen, as we would have "trimmed" this HTLC and not created an output for it.
 ```rust
 let fee = calculate_htlc_tx_fee(feerate_per_kw);
 let output_amount = htlc_amount.saturating_sub(fee);
 ```
 
 <details>
-  <summary>Click to see calculate_htlc_timeout_tx_fee</summary>
-
+  <summary>Click to see calculate_htlc_tx_fee</summary>
 ```rust
-pub fn calculate_htlc_timeout_tx_fee(feerate_per_kw: u64) -> u64 {
+pub fn calculate_htlc_tx_fee(feerate_per_kw: u64) -> u64 {
     const HTLC_TX_WEIGHT: u64 = 663;
     (feerate_per_kw * HTLC_TX_WEIGHT) / 1000
 }
@@ -253,7 +287,6 @@ pub fn calculate_htlc_timeout_tx_fee(feerate_per_kw: u64) -> u64 {
   <summary>Step 2: Create the to_local Output Script</summary>
 
 Remember, the timeout transaction contains the same `to_local` script as our commitment transaction! This way, we can ensure that our counterparty has a way to claim the funds if we attempt to cheat in the future by publishing this state (assuming we've moved on and this state is now old). 
-
 ```rust
 let to_local_script = create_to_local_script(
     &local_keys.revocation_key,
@@ -267,15 +300,14 @@ let to_local_script = create_to_local_script(
 <details>
   <summary>Step 3: Create the Transaction Input</summary>
 
-Next, let's define our HTLC Timeout input! For now, we'll keep it unsigned, so we just need to create a `TxIn` object, using Rust Bitcoin, and specify the     `htlc_outpoint` as our `previous_output`.
-
+Next, let's define our HTLC Timeout input! For now, we'll keep it unsigned, so we just need to create a `TxIn` object, using Rust Bitcoin, and specify the `htlc_outpoint` as our `previous_output`.
 ```rust
 let tx_in = TxIn {
-        previous_output: htlc_outpoint,
-        script_sig: ScriptBuf::new(),
-        sequence: Sequence::ZERO,
-        witness: Witness::new(),
-    };
+    previous_output: htlc_outpoint,
+    script_sig: ScriptBuf::new(),
+    sequence: Sequence::ZERO,
+    witness: Witness::new(),
+};
 ```
 
 </details>
@@ -284,15 +316,15 @@ let tx_in = TxIn {
   <summary>Step 4: Create the Transaction Output</summary>
 
 Moving along, let's create a `TxOut` object, which we can do by specifying the amount and script pubkey. Remember, we can convert the script to a script pubkey by using the `to_p2wsh()` method on the `ScriptBuf`.
-
 ```rust
 let tx_out = TxOut {
-        value: Amount::from_sat(output_amount),
-        script_pubkey: to_local_script.to_p2wsh(),
-    };
+    value: Amount::from_sat(output_amount),
+    script_pubkey: to_local_script.to_p2wsh(),
+};
 ```
 
 We convert the `to_local_script` to P2WSH format using `.to_p2wsh()`. This means:
+
 - The output contains a hash of the script
 - When spending from this output, you'll need to provide the full script in the witness
 
@@ -302,9 +334,9 @@ We convert the `to_local_script` to P2WSH format using `.to_p2wsh()`. This means
   <summary>Step 5: Assemble the Complete Transaction</summary>
 
 Finally, let's put it all together into a `Transaction`. Remember to account for the following:
-1) Our non-anchor Lightning commitments will be version 2.
-2) We need to set the `lock_time` field to the HTLC's `cltv_expiry` block height!
 
+1. Our non-anchor Lightning commitments will be version 2.
+2. We need to set the `lock_time` field to the HTLC's `cltv_expiry` block height!
 ```rust
 Transaction {
     version: Version::TWO,
@@ -321,6 +353,7 @@ Transaction {
 Our HTLC Timeout functionality is almost fully implemented! There are just two important pieces left: generating our signature and building the witness. So, for this exercise, we'll tackle those two steps by building the `finalize_htlc_timeout` function.
 
 This function takes the following parameters:
+
 - `keys_manager`: Our Channel Keys Manager, which holds our HTLC Basepoint Secret and can generate signatures.
 - `tx`: The unsigned HTLC timeout transaction we created earlier.
 - `input_index`: The index of the input we're signing on the HTLC Timeout Transaction.
@@ -328,12 +361,10 @@ This function takes the following parameters:
 - `htlc_amount`: The amount in the HTLC output (needed for signature generation).
 - `remote_htlc_signature`: Our counterparty's signature (pre-signed when the HTLC was created).
 
-Go ahead and try implementing the function below! To successfully complete this exercise, you'll need to generate your (local) HTLC signture and then add the following witness to the transaction.
-
+Go ahead and try implementing the function below! To successfully complete this exercise, you'll need to generate your (local) HTLC signature and then add the following witness to the transaction.
 ```
 0 <remotehtlcsig> <localhtlcsig> <> htlc_script
 ```
-
 ```rust
 pub fn finalize_htlc_timeout(
     keys_manager: ChannelKeyManager,
@@ -343,7 +374,6 @@ pub fn finalize_htlc_timeout(
     htlc_amount: u64,
     remote_htlc_signature: Vec<u8>,
 ) -> Transaction {
-
     let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
@@ -371,13 +401,40 @@ pub fn finalize_htlc_timeout(
 ```
 
 <details>
+  <summary>💡 Hint 💡</summary>
+
+This function is similar to `sign_holder_commitment`, which we implemented earlier. Here are a few hints to get you going!
+
+1. **Get the HTLC private key**
+   - Since we're generating a signature, we'll need the `htlc_basepoint_secret` from the `keys_manager`.
+
+2. **Generate the local HTLC signature**
+   - Once we have the secret, use `keys_manager.sign_transaction_input_sighash_all()` to generate a signature. Remember, you'll need to pass the following arguments:
+     - `&tx`: The transaction you're signing.
+     - `input_index`: The index of the input.
+     - `&htlc_script`: The HTLC script you're spending from.
+     - `htlc_amount`: The amount in the HTLC output.
+     - `&local_htlc_privkey`: The private key you just retrieved.
+
+3. **Build the witness stack**
+   - The witness for the HTLC Timeout path follows this structure: `0 <remotehtlcsig> <localhtlcsig> <> htlc_script`
+   - Check some of your older exercises if you need help completing this!
+
+4. **Attach the witness to the transaction**
+   - Create a mutable copy of the transaction.
+   - Set `signed_tx.input[0].witness` to the witness we just built.
+
+5. **Return the signed transaction!**
+
+</details>
+
+<details>
   <summary>Step 1: Fetch the Local HTLC Private Key</summary>
 
 Since we'll need to generate our own signature, using the **HTLC Basepoint Secret**, we'll need to start by fetching the secret from our `ChannelKeyManager`. You can click the dropdown below if you need a reminder of the `ChannelKeyManager` structure.
 
 <details>
   <summary>ChannelKeyManager</summary>
-
 ```rust
 pub struct ChannelKeyManager {
     pub funding_key: SecretKey,
@@ -391,8 +448,6 @@ pub struct ChannelKeyManager {
 ```
 
 </details>
-
-
 ```rust
 let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 ```
@@ -405,10 +460,9 @@ let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 Next, let's generate our signature for the HTLC offerer output on our commitment transaction. To do this, we can use the `sign_transaction_input_sighash_all` function we created earlier in this course.
 
 <details>
-  <summary>Click to see sign_transaction_input_sighash_all function definition </summary>
+  <summary>Click to see sign_transaction_input_sighash_all function definition</summary>
 
 We implemented the `sign_transaction_input_sighash_all` function earlier in this course. You may not have implemented it *exactly* like the below example, which is okay! That said, here is an example implementation to help jog your memory as you complete this exercise.
-
 ```rust
 pub fn sign_transaction_input_sighash_all(
     &self,
@@ -439,7 +493,6 @@ pub fn sign_transaction_input_sighash_all(
 ```
 
 </details>
-
 ```rust
 let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
     &tx,
@@ -456,7 +509,6 @@ let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
   <summary>Step 3: Build the Witness Stack</summary>
 
 Now, let's build the witness stack!
-
 ```rust
 let witness = Witness::from_slice(&[
     &[][..],                        // OP_0 for CHECKMULTISIG bug
@@ -469,9 +521,9 @@ let witness = Witness::from_slice(&[
 
 Below is a breakdown of each element:
 
-1. **Empty byte array (`&[][..]`)**: First, we need to add a dummy element to the stack (`OP_0`), since there is an `OP_CHECKMULTISIG` error that pops an extra item of the stack.
+1. **Empty byte array (`&[][..]`)**: First, we need to add a dummy element to the stack (`OP_0`), since there is an `OP_CHECKMULTISIG` bug that pops an extra item off the stack.
 
-2. **Remote HTLC signature**: Next, we add our counterparty's pre-signed signature. Remember, they give this to use when we are setting up the HTLC!
+2. **Remote HTLC signature**: Next, we add our counterparty's pre-signed signature. Remember, they give this to us when we are setting up the HTLC!
 
 3. **Local HTLC signature**: Then we add our signature, which we just created.
 
@@ -487,7 +539,6 @@ Below is a breakdown of each element:
 Lastly, we'll add the witness to the transaction's input.
 
 Don't forget to return the signed transaction!
-
 ```rust
 let mut signed_tx = tx;
 signed_tx.input[0].witness = witness;
