@@ -1,25 +1,27 @@
 # Introduction to Hash Time-Locked Contracts (HTLCs)
 
-So, the big question is: how can Alice **trustlessly** and **atomically** route a payment to Dianne over an arbitrary number of hops? 
-- **Trustlessly**: Alice does not need to trust Bob (or any intermediate hop). For example, it should not be possible for Bob to tell Alice that the payment has been forwarded when, in fact, it was not. Similarly, Bob should not need to trust Alice. For example, it should not be possible for Bob to forward a payment without a guarentee that Alice will pay Bob.
-- **Atomically**: The payment should either fully succeed for fully fail. In other words, it should not partially complete, meaning that Alice pays Bob *but* Bob *does not* pay Dianne.
+So, the big question is: how can Alice **trustlessly** and **atomically** route a payment to Dianne over an arbitrary number of hops? To answer this, let's start by reviewing each of these terms.
 
-If the above two properties don't fully make sense just yet, don't worry! We'll inch our way towards a complete understanding of them shortly.
+- **Trustlessly**: Alice does not need to trust Bob (or any intermediate hop). For example, it should not be possible for Bob to tell Alice that the payment has been forwarded when, in fact, it was not. Similarly, Bob should not need to trust Alice. For example, it should not be possible for Bob to forward a payment without a guarantee that Alice will pay Bob.
+- **Atomically**: The payment should either fully succeed or fully fail. In other words, it should not partially complete, meaning that Alice pays Bob *but* Bob *does not* pay Dianne.
 
-To achieve these two properties, Lightning uses **"Hash Time-Locked Contracts"**, also known as **HTLCs**. To help us understand HTLCs, we'll start by reviewing a few imporant primitives below.
+If the above two properties don't fully make sense just yet, don't worry! We'll inch our way towards a complete understanding of them now.
+
+To achieve these two properties, Lightning uses **Hash Time-Locked Contracts**, also known as **HTLCs**. To help us understand HTLCs, we'll start by reviewing a few important primitives below.
 
 ## Invoice
+
 To build our intuition of Lightning HTLCs, let's walk through an example. Imagine Alice goes to the local coffee shop, which Dianne owns. She is interested in buying a double espresso with raw milk, since that's what the influencers on Twitter are recommending.
 
-She asks Dianne to generate an **invoice** for her. This invoice will provide basic payment information, such as the product that Alice is buying, the cost, and how long this offer is valid for. 
+She asks Dianne to generate an **invoice** for her. This invoice will provide basic payment information, such as the product that Alice is buying, the cost, and how long this offer is valid for.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/dianne_invoice.png" alt="dianne_invoice" width="80%" height="auto">
 </p>
 
 ## Contracts
-When we think of payments, we may think of simply sending money and getting something in return, but there is more going on here. Each payment is actually a **contract**. For instance, when Alice buys a coffee, she sets up the following informal agreement with the coffee shop:
 
+When we think of payments, we may think of simply sending money and getting something in return, but there is more going on here. Each payment is actually a **contract**. For instance, when Alice buys a coffee, she sets up the following informal agreement with the coffee shop:
 ```
 If Alice pays 400,000 sats
   Then the vendor will give her coffee
@@ -31,12 +33,11 @@ If Alice pays 400,000 sats
   <img src="./tutorial_images/contract.png" alt="contract" width="60%" height="auto">
 </p>
 
-
 ## Contracts on Lightning
+
 Since Alice does not have a channel open with Dianne, the coffee shop owner, Alice will create a payment contract with Bob instead, since Bob has a channel open with Dianne. This contract will have the following condition: **If Bob pays Dianne 400,000 sats, Alice will send Bob 405,000 sats**, effectively refunding him ***and providing a fee for his service***.
 
 Here is the same contract, but in an **If-Else** format.
-
 ```
 If Bob pays Dianne 400,000 sats:
   Alice will send Bob 405,000 sats
@@ -51,6 +52,7 @@ Else If 8 hours elapses:
 💡 **One VERY important concept to understand is that, in Lightning, Bob will pay Dianne first. In other words, the payments will occur in reverse order! So Bob pays Dianne, and then Alice pays Bob. This is why Alice's contract with Bob starts with the following condition: `If Bob pays Dianne 400,000 sats:`**
 
 ## Proof of Payment
+
 Let's improve the above contract by making it a little more precise. What we really need is a mechanism to **prove** that Bob paid Dianne. For example, if Bob is able to provide Alice with a *verifiable* **receipt** from Dianne, then Alice can be assured that Bob actually paid Dianne.
 
 <p align="center" style="width: 50%; max-width: 300px;">
@@ -58,12 +60,15 @@ Let's improve the above contract by making it a little more precise. What we rea
 </p>
 
 #### Question: How can we use cryptography to create a verifiable receipt?
+
 <details>
   <summary>Answer</summary>
 
-To create a **proof of payment** mechanism, Dianne can generate a large, 256-bit random number (called the "**Preimage**") and then take the SHA256 hash of it (called the "**Preimage Hash**"). For example, Dianne could generate the following:
+To create a **proof of payment** mechanism, Dianne can generate a large, 256-bit random number (called the **Preimage**) and then take the SHA256 hash of it (called the **Preimage Hash**). For example, Dianne could generate the following:
+
 - Preimage (Secret): `8845245608872841509637822048114565670970616821530093488522820396031866013946`
 - Preimage Hash: `566d49f57a1914e8c648d6bd169401b4f4e0fc9cf4ac2f4715ab01216b480c62`
+    - This is the SHA256 hash of the Preimage Secret!
 
 Dianne can then take the **Preimage Hash** and include it in the invoice that she gives Alice, but Dianne will keep the **Preimage** to herself for now!
 
@@ -71,17 +76,17 @@ Dianne can then take the **Preimage Hash** and include it in the invoice that sh
   <img src="./tutorial_images/preimage_invoice.png" alt="preimage_invoice" width="50%" height="auto">
 </p>
 
-Alice can now update the contract with Bob, requiring that Bob provide the **Preimage** in order to claim the 405,000 from Alice. Since the **Preimage** is only known by Dianne, Bob will set up a contract with Dianne **with the same Preimage Hash that Alice gave him**. 
+Alice can now update the contract with Bob, requiring that Bob provide the **Preimage** in order to claim the 405,000 sats from Alice. Since the **Preimage** is only known by Dianne, Bob will set up a contract with Dianne **with the same Preimage Hash that Alice gave him**.
 
 Here is the crucial part: **This creates a chain of payments, where Bob only pays Dianne if she provides Bob with the Preimage**. Once Bob has the **Preimage**, he can turn around and claim the funds from Alice, since this is exactly the same **Preimage** that is locked in his contract with Alice.
 
-Since these contracts don't last forever, we'll implement an expiry time, measured in **block height**. If the **Preimage** is not provided by a specific block height, then the contract expires and the funds are no longer cliamable by Bob or Dianne.
+Since these contracts don't last forever, we'll implement an expiry time, measured in **block height**. If the **Preimage** is not provided by a specific block height, then the contract expires and the funds are no longer claimable by Bob or Dianne.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/alice_bob_dianne_preimage.png" alt="alice_bob_dianne_preimage" width="100%" height="auto">
 </p>
 
-Together, the above components allow Alice to create a **Hash-Time-Locked-Contract** (**HTLC**), meaning that the contract is "locked" such that the receiver of the contract (Bob or Dianne) must provide the **Preimage** within a specific amount of blocks to be able to claim the locked funds.
+Together, the above components allow Alice to create a **Hash Time-Locked Contract** (**HTLC**), meaning that the contract is "locked" such that the receiver of the contract (Bob) must provide the **Preimage** within a specific number of blocks to be able to claim the locked funds.
 
 **Take a minute to think through how we can set up these contracts in Bitcoin. How will we represent them? When you're ready, head over to the next section to learn how to implement a simple HTLC!**
 

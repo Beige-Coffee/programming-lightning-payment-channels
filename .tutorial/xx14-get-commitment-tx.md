@@ -1,33 +1,35 @@
 # Get Our First Commitment (Refund) Transaction
 
-If you're reading this... you're approaching a **really** important checkpoint. We're going to use all of the code we've build thus far to generate our first commitment transaction. Since we're playing the part of Alice, this will be our "refund" transaction with will send our funds back to us if Bob goes offline.
+If you're reading this... congrats on making it this far! You're approaching a **really** important checkpoint.
+
+In this next exercise, we're going to use all of the code we've built thus far to generate our first commitment transaction. Since we're playing the part of Alice, this will be our "refund" transaction, which will send our funds back to us if Bob goes offline.
 
 <p align="center" style="width: 50%; max-width: 300px;">
   <img src="./tutorial_images/alice_refund_commit.png" alt="alice_refund_commit" width="60%" height="auto">
 </p>
 
 ## 👉 Get Our First Commitment Transaction
-Rememeber how we ran `cargo run -- funding` to generate our funding transaction? Well, we'll do something very similar for this exercise.
 
-To prepare ourselves, we'll first need to open `transactions.txt` (in `src/exercises`) and get our Funding Transaction TxID. You should have recorded that when you created your Funding Transaction earlier. If you forgot, you can simply run `cargo run -- funding` again and record it now!
+Remember how we ran `cargo run -- funding` to generate our **Funding Transaction**? Well, we'll do something very similar for this exercise.
+
+To prepare ourselves, we'll first need to open `transactions.txt` (in `src/exercises`) and get our **Funding Transaction TxID**. You should have recorded that when you created your **Funding Transaction** earlier. If you forgot, no worries—you can simply run `cargo run -- funding` again and record it now!
 
 Once you have it, go to a **Shell** in your Repl and type in the below command. **Be sure to replace `txid` with the TxID of your Funding Transaction**!
-
 ```
 cargo run -- commitment -t txid
 ```
 
-Under the hood, this command is running the code in `src/interactive/commitment.rs` - feel free to explore this file, if you'd like!
+Under the hood, this command is running the code in `src/interactive/commitment.rs`—feel free to explore this file if you'd like!
 
-If you do check out the file, you'll see that it's creating two sets of keys - one for us (Alice) and one for Bob. To do this, it's using the functions we created earler! Once the keys are created, it fetches the funding UTXO, which it can easily do because you provided the **Funding TxID** in the command! For this course, all funding outputs are guarenteed to be at output index 0, so we don't need to provide that in the command.
+If you do check out the file, you'll see that it's creating two sets of keys—one for us (Alice) and one for Bob. To do this, it's using the functions we created earlier! Once the keys are created, it fetches the funding UTXO, which it can easily do because you provided the **Funding TxID** in the command! For this course, all funding outputs are guaranteed to be at output index 0, so we don't need to provide that information in the command.
 
-If you scroll through the rest of the code, you'll see it calls a few other functions that we've completed during this course:
-- `create_commitment_transaction`: This creates an unsigned commitment transaction.
-- `create_funding_script`: This creates the 2-of-2 multisig script, which is needed to generate a signature and pass into the witness.
-- `sign_holder_commitmentment`: This generates our (Alice's) signature and adds it to the witness (along with Bob's signature and the witness script), resulting in a fully signed transaction ready to be broadcasted!
+If you scroll through the rest of the code, you'll see it calls various other functions that we've completed during this course:
+
+- `create_commitment_transaction`: Creates an unsigned commitment transaction.
+- `create_funding_script`: Creates the 2-of-2 multisig script, which is needed to generate a signature and pass into the witness.
+- `sign_holder_commitment`: Generates our (Alice's) signature and adds it to the witness (along with Bob's signature and the witness script), resulting in a fully signed transaction ready to be broadcast!
 
 Once you run the command, you should see an output like this...
-
 ```
 Tx ID:
 5fbe34ddcd9d86f092611b52f38ca2dc63cc05d585b0ae74859f0dbe31fbed9d
@@ -35,18 +37,16 @@ Tx ID:
 Tx Hex: 02000000000101e80a0a05a9b6495c1a6259e450a5f339e0c615ebab523958e53360f5a9e0262600000000001ad8bb800234440f00000000001600148c4e98f51715d292104530224efba56176fb39b1b8d83c000000000022002069fa2c947fd3a8a103b076b46bc5bea6c1035fee25a14270c6a6e420d234a4ab0400483045022100cb6abfe33ec9a2bf83d06f2e46efb0d538b3de19d5d63342818f7d20e0f4e07c022034b86af66b84825dd0e0fd115f434af6d553de959c2f424c5ffe3d1ca94c0afa0147304402206080abdfbcc21fd8259bb74500e87d31eceeaf3a19064683e388ea26788b78e902206bec6fd181c14a1bccc75ae58a5cd671cfec2241b099b4d14a3d006eae6e8c670147522102744c609aeee71a07136482b71244a6217b3368431603e1e3994d0c2d226403af2103cfa114ffa28b97884a028322665093af66bb19b0cf91c81eae46e6bb7fff799a52ae8cfe0720
 ```
 
-This is our commitment transaction! **Note: we have still NOT broadcasted our Funding Transaction yet**. That will come soon! Go ahead and copy the **Tx Hex** and **Tx ID** and save them in the file `src/exercises/transactions.txt` under the headings **Commitment Tx (Refund) ID** and **Commitment Tx (Refund) Hex**. 
+This is our commitment transaction! **Note: we have still NOT broadcast our Funding Transaction yet**. That will come soon! Go ahead and copy the **Tx Hex** and **Tx ID** and save them in the file `src/exercises/transactions.txt` under the headings **Commitment Tx (Refund) ID** and **Commitment Tx (Refund) Hex**.
 
 # Decoding Our Commitment Transaction
 
-Optionally, if you want to dig into the details, go ahead and run the below command in your shell, replacing `raw_tx_hex` with the transaction hex we just generated.
-
+If you want to dig into the details, go ahead and run the below command in your shell, replacing `raw_tx_hex` with the transaction hex we just generated.
 ```
 decodetx raw_tx_hex
 ```
 
 You should get an output like the below. See if you can map this back to the image at the top of this page. You can also scroll down, and some of this will be described for you.
-
 ```
 {
   "txid": "250e8eb27d7da5459b930be597c2c3bedd9639056985c4848ef6fc3fd7bf0286",
@@ -101,14 +101,14 @@ You should get an output like the below. See if you can map this back to the ima
 ```
 
 ### Weight & (Virtual) Size
-Let's start, going from top to bottom. The first few fields (txid, hash, version) are more self-explanatory, so we'll focus on the size and weight!
+
+Let's start going from top to bottom. The first few fields (txid, hash, version) are more self-explanatory, so we'll focus on the size and weight!
 
 The **size** is the number of bytes our transaction contains. However, after the SegWit upgrade, which provided a discount for data placed in the witness, the concept of a **virtual size** was introduced.
 
-If you were to multiply each part of the transactiond data's size by it's associated multiplier, you'd get the transaction's **weight units**. Notice here how our transaction has 721 weight units - right in between the range of 720 - 724!
+If you were to multiply each part of the transaction data's size by its associated multiplier, you'd get the transaction's **weight units**. Notice here how our transaction has 721 weight units - right in between the range of 720-724!
 
 If we divide the **weight units** by 4, we get the **virtual size**. The total fees we would pay to broadcast this transaction would be the `sats/vbyte * vsize`.
-
 ```
 "size": 346,
 "vsize": 181,
@@ -116,25 +116,25 @@ If we divide the **weight units** by 4, we get the **virtual size**. The total f
 ```
 
 ### Locktime
-In the locktime field, you'll see a value that looks similar to the below:
 
+In the locktime field, you'll see a value that looks similar to the below:
 ```
 "locktime": 537394828,
 ```
 
-As we learned earlier when we created the **obscured commitment number**, we place the upper 24 bits of the **obscured commitment number** in the locktime field - prefixed with 0x20 (8 bits). 
+As we learned earlier when we created the **obscured commitment number**, we place the lower 24 bits of the **obscured commitment number** in the locktime field, prefixed with `0x20` (8 bits).
 
-This ensures the resulting locktime will evaluate to something above 536,870,912 but below 546,937,241. Since anything above 500,000,000 is interpreted as a Unix timestamp, and 536,870,912 - 546,937,241 is, roughly, around 1987, the locktime will always be a valid locktime in the past!
+This ensures the resulting locktime will evaluate to something above 536,870,912 but below 546,937,241. Since anything above 500,000,000 is interpreted as a Unix timestamp, and this range corresponds to dates around 1987, the locktime will always be a valid locktime in the past!
 
-As we can see above, the locktime is a valid locktime in the past, and only we know how to combine it with the sequence field to learn the commitment number for this state! 
+As we can see above, the locktime is valid and in the past, and only we know how to combine it with the sequence field to learn the commitment number for this state!
 
 ### Input
 
-If you look at the `vin`, you'll see the one input for our commitment transaction - the 2-of-2 multisig output! You should recognize that the `txid` is equal to the one you passed in when you ran the command.
+If you look at the `vin`, you'll see the one input for our commitment transaction—the 2-of-2 multisig output! You should recognize that the `txid` is equal to the one you passed in when you ran the command.
 
-`vout` is 0 because, as mentioned earlier, all funding outputs **for this course** will be index 0, but that is not the case in the "real world" - they can be any index.
+`vout` is 0 because, as mentioned earlier, all funding outputs **for this course** will be at index 0, but that is not the case in the real world - they can be any index.
 
-Since we're using SegWit (to prevent transaction maleability), the witness data has been moved out of the `scriptSig` and into the `txinwitnesss`, so the `scriptSig` is blank.
+Since we're using SegWit (to prevent transaction malleability), the witness data has been moved out of the `scriptSig` and into the `txinwitness`, so the `scriptSig` is blank.
 ```
 "vin": [
   {
@@ -150,34 +150,32 @@ Since we're using SegWit (to prevent transaction maleability), the witness data 
 
 Take a moment and see if you can guess what is in the witness field!
 
-Answer... Remember, since there is a bug in `OP_CHECKMULTISIG` which pops an extra item off the stack, we must first add an empty element ("").
+#### Answer
+
+Remember, since there is a bug in `OP_CHECKMULTISIG` which pops an extra item off the stack, we must first add an empty element (`""`).
 
 Then, we add the two signatures for the public keys in the 2-of-2 multisig script.
 
-Finally, we add the multisig script itself, since we previously locked to the hash, so we need to provide the script so that bitcoin can check if we truly are able to spend the coins locked in the input.
-
+Finally, we add the multisig script itself. Since we previously locked to the hash, we need to provide the script so that Bitcoin knows the actual locking condition to evaluate for this input.
 ```
 "txinwitness": [
-"",
-        "3045022100e396e4d418de174c68b372d073b8ac89ffaa0e3e8665f7beb5f87c8246a030e902202b19b6d4e1fc1a824d2d0521760f9012a2b0d31fc584b559c7e11e026add89bc01",
-        "304402203b8e3d47b8b1d0a9b99265ffd179ba7327419e52fd006bc59db4d969956549ed02202d6bf4932d60f53f586e1c50fc6f5e0e97ba2cca361c50ff8b0b11a917e5e61d01",
-        "522102744c609aeee71a07136482b71244a6217b3368431603e1e3994d0c2d226403af2103cfa114ffa28b97884a028322665093af66bb19b0cf91c81eae46e6bb7fff799a52ae"
-
+  "",
+  "3045022100e396e4d418de174c68b372d073b8ac89ffaa0e3e8665f7beb5f87c8246a030e902202b19b6d4e1fc1a824d2d0521760f9012a2b0d31fc584b559c7e11e026add89bc01",
+  "304402203b8e3d47b8b1d0a9b99265ffd179ba7327419e52fd006bc59db4d969956549ed02202d6bf4932d60f53f586e1c50fc6f5e0e97ba2cca361c50ff8b0b11a917e5e61d01",
+  "522102744c609aeee71a07136482b71244a6217b3368431603e1e3994d0c2d226403af2103cfa114ffa28b97884a028322665093af66bb19b0cf91c81eae46e6bb7fff799a52ae"
 ]
 ```
 
 ### Sequence
 
 The last part of the input is the `sequence` field.
-
 ```
 "sequence": 2159794202
 ```
 
-We place the lower 24 bits of the **obscured commitment number** here, prefixed with 0x80 (8 bits).
+We place the upper 24 bits of the **obscured commitment number** here, prefixed with `0x80` (8 bits).
 
-By prefixing this field with 0x90, we disable any relative locktimes (in relation to the 2-of-2 multisig funding transaction).
-
+By prefixing this field with `0x80`, we disable any relative timelocks (in relation to the 2-of-2 multisig funding transaction).
 
 ### Outputs
 
@@ -187,8 +185,7 @@ It's much easier to identify them by simply looking at the amounts, but see if y
 
 If you noticed the `type` field, that would have given it away as well. Remember, the `to_remote` is a P2WPKH, while the `to_local` is a P2WSH.
 
-However, another way to tell which is which is by the *size* of the "asm", which is meant to be a human-readable script. The `0` stands for `OP_0` and the data after is the hash! If you recall, the `to_remote` takes the HASH160 (results in 20 bytes) of the Public Key, while the `to_remote` takes the SHA256 (results in 32 bytes) of the witness script. So the `to_local` will be longer!
-
+However, another way to tell which is which is by the *length* of the "asm", which is meant to be a human-readable script. The `0` stands for `OP_0` and the data after is the hash! If you recall, the `to_remote` takes the HASH160 (results in 20 bytes) of the public key, while the `to_local` takes the SHA256 (results in 32 bytes) of the witness script. So the `to_local` will be longer!
 ```
 "vout": [
   {

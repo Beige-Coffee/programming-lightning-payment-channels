@@ -2,11 +2,12 @@
 
 Now that Alice and Bob have created their funding transaction and, crucially, their **First Commitment (Refund) Transaction**, they are ready to open their channel!
 
-Remember, Alice cannot broadcast the **Funding Transaction** without having a **Refund Transaction** ready first, as this would open Alice up to the risk that Bob stops responding or refuses to cooporate, effectively locking Alice's funds in this channel forever! 
+Remember, Alice should not broadcast the **Funding Transaction** without having a **Refund Transaction** ready first, as this would open Alice up to the risk that Bob stops responding or refuses to cooperate, effectively locking Alice's funds in this channel... forever!
 
-Once these transactions are created, the next step is to broadcast the **Funding Transaction** to the Bitcoin network and wait for it to be included in a block. To ensure the transaction is considered final and irreversible, it’s standard practice to wait until the block containing the transaction has at least 6 confirmations (i.e., 6 additional blocks mined on top of it).
+Once these transactions are created, the next step is to broadcast the **Funding Transaction** to the Bitcoin network and wait for it to be included in a block. To ensure the transaction is considered final and irreversible, it's standard practice to wait until the block containing the transaction has at least 6 confirmations (i.e., 6 additional blocks mined on top of it).
 
 #### Question: Why is it best practice to wait until a funding transaction has 6 confirmations?
+
 <details>
   <summary>Answer</summary>
 
@@ -14,25 +15,23 @@ Waiting for 6 confirmations ensures that the funding transaction is deeply embed
 
 </details>
 
-## 👉  Mine Our Funding Transaction
+## 👉 Mine Our Funding Transaction
+
 To get a feel for what this is like, let's mine our funding transaction! Go to your `transactions.txt` file and copy your **Funding Tx Hex**.
 
-Now, go back to your shell and execute the below command, replacing `<funding_tx_hex>` with the **Funding Tx Hex** you just copied.
-
+Now, go back to your shell and execute the below command, replacing `funding_tx_hex` with the **Funding Tx Hex** you just copied.
 ```
-sendtx <funding_tx_hex> 
+sendtx funding_tx_hex
 ```
 
-Once it's broadcasted, you should see the Tx ID returned, which is the same as the one in your `transactions.txt` file.
+Once it's broadcast, you should see the Tx ID returned, which is the same as the one in your `transactions.txt` file.
 
-Now, type the below command in your Shell, but replace `<funding_tx_id>` with your **Funding Tx ID**.
-
+Now, type the below command in your shell, but replace `funding_tx_id` with your **Funding Tx ID**.
 ```
-gettx <funding_tx_id> 
+gettx funding_tx_id
 ```
 
 You should see something like the below.
-
 ```
 {
   "amount": -0.05000000,
@@ -40,12 +39,12 @@ You should see something like the below.
   "confirmations": 0,
 ....
 ```
-**We have 0 confirmations! This isn't too surprising, considering we just broadcasted the funding transaction. However, we need 6 confirmations before we can start operating our channel. Let's fix this!**
 
-Try mining 6 blocks by entering the below command in your Shell, and then check again!
+**We have 0 confirmations! This isn't too surprising, considering we just broadcast the funding transaction. However, we want 6 confirmations before we can start operating our channel. Let's fix this!**
 
+Try mining 6 blocks by entering the below command in your shell, and then check again!
 ```
 mine 6
 ```
 
-We should now be good-to-go and ready to operate our payment channel!
+We should now be good to go and ready to operate our payment channel!
