@@ -9,31 +9,30 @@ Below is a visual representation of the commitment transaction we're about to cr
 </p>
 
 ## 👉 Get Our Commitment Transaction
+
 Similar to the earlier command line exercises, let's open `transactions.txt` (in `src/exercises`) and get our Funding Transaction TxID. It should be recorded at the top of the file. 
 
-If you don't have a Funding Transaction or First Commitment (Refund) Transaction yet, you'll need to complete these steps first. You can do this by following the below:
-1) Run `cargo run -- funding` in a **Shell**.
-2) Record the **TxID** and **Transaction Hex** of the **Funding Transaction Hex** in your `transactions.txt` file.
-3) Run `cargo run -- commitment -t txid` a **Shell**, but be sure to replace `txid` with the **Funding Transaction** **TxID** from Step 1.
-4) Record the **TxID** and **Transaction Hex** from the **First Commitment (Refund) Transaction** in your `transactions.txt` file.
+If you don't have a Funding Transaction yet, you'll need to complete these steps first. You can do this by following the below:
+
+1. Run `cargo run -- funding` in a **Shell**.
+2. Record the **TxID** and **Transaction Hex** of the **Funding Transaction Hex** in your `transactions.txt` file.
 
 Once you have your **Funding Transaction TxID**, go to a **Shell** in your Repl and type in the below command. **Be sure to replace `txid` with the TxID of your Funding Transaction**!
-
 ```
 cargo run -- htlc -t txid
 ```
 
 Under the hood, this command is running the code in `src/interactive/htlc.rs` - feel free to explore this file, if you'd like!
 
-If you do check out the file, you'll see that it's creating two sets of keys - one for us (Alice) and one for Bob. To do this, it's using the functions we created earler! Once the keys are created, it fetches the **Funding UTXO**, which it can easily do because we provided the **Funding TxID** in the command! For this course, all funding outputs are guarenteed to be at output index 0, so we don't need to provide the index in the command.
+If you do check out the file, you'll see that it's creating two sets of keys - one for us (Alice) and one for Bob. To do this, it's using the functions we created earlier! Once the keys are created, it fetches the **Funding UTXO**, which it can easily do because we provided the **Funding TxID** in the command! For this course, all funding outputs are guaranteed to be at output index 0, so we don't need to provide the index in the command.
 
 If you scroll through the rest of the code, you'll see it calls a few other functions that we've completed during this course:
-- `create_commitment_transaction`: This creates an unsigned commitment transaction. **Crucually, it's now updated to add any relevant HTLCs too!**
+
+- `create_commitment_transaction`: This creates an unsigned commitment transaction. **Crucially, it's now updated to add any relevant HTLCs too!**
 - `create_funding_script`: This creates the 2-of-2 multisig script, which is needed to generate a signature and pass into the witness.
-- `sign_holder_commitmentment`: This generates our (Alice's) signature and adds it to the witness (along with Bob's signature and the witness script), resulting in a fully signed transaction ready to be broadcasted!
+- `sign_holder_commitment`: This generates our (Alice's) signature and adds it to the witness (along with Bob's signature and the witness script), resulting in a fully signed transaction ready to be broadcast!
 
 Once you run the command, you should see an output like this...
-
 ```
 ✅ Commitment Transaction Created
 
@@ -47,13 +46,11 @@ This is our commitment transaction with 1 HTLC! Go ahead and copy the **Tx Hex**
 # Decoding Our Commitment Transaction
 
 Let's dig into the details! Go ahead and run the below command in your shell, replacing `raw_tx_hex` with the transaction hex we just generated.
-
 ```
 decodetx raw_tx_hex
 ```
 
-You should get an output like the below. We won't dig in to each element like we did earlier, but we'll attention to the outputs!
-
+You should get an output like the below. We won't dig into each element like we did earlier, but we'll pay attention to the outputs!
 ```
 {
   "txid": "e0a0022dba0f494f3670eb1026b4e11402e7c08d96b0a67ae29ad6cc97a4d54c",
@@ -122,7 +119,7 @@ You should get an output like the below. We won't dig in to each element like we
 
 Once again, we can see the `to_local` and `to_remote` outputs! Can you tell which is which?
 
-Even without looking at the amonut, we should be able to identify the `to_remote` output pretty easily - it's the only output that is locked to a `"type": "witness_v0_keyhash"` (Pay-To-Witness-Public-Key-Hash).
+Even without looking at the amount, we should be able to identify the `to_remote` output pretty easily - it's the only output that is locked to a `"type": "witness_v0_keyhash"` (Pay-To-Witness-Public-Key-Hash).
 
 Since the `to_local` and HTLC outputs are both Pay-To-Witness-Script-Hash, we will have to tell them apart by their amount (or recreate the script and hash it).
 

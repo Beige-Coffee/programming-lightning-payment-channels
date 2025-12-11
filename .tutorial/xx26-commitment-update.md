@@ -1,9 +1,8 @@
 # Updating Our Commitment Transaction
 
-Believe it or not, we're almost done with our last coding exercises! At this point, we've implemented our HTLC Timeout Transaction, but we haven't add the HTLC to our commitment transaction just yet. Let's do that now!
+Believe it or not, we're almost done with our last coding exercises! At this point, we've implemented our HTLC Timeout Transaction, but we haven't added the HTLC to our commitment transaction just yet. Let's do that now!
 
-For this next exercise, we're going to return the to `create_commitment_transaction` function that we created earlier in the course. If you need a reminder, check your `src/exercises/transactions/commitment.rs` file or view the function definition below.
-
+For this next exercise, we're going to return to the `create_commitment_transaction` function that we created earlier in the course. If you need a reminder, check your `src/exercises/transactions/commitment.rs` file or view the function definition below.
 ```rust
 pub fn create_commitment_transaction(
     funding_outpoint: OutPoint,
@@ -25,18 +24,17 @@ If you recall, we largely ignored the two inputs `offered_htlcs` and `received_h
 
 ## ⚡️ Write A Function To Create HTLC Outputs
 
-To begin this journey, we'll start by implementing a helper function that will produce a `Vec` of `OutputWithMetadata` for our HTLCs. This is very similar to the `create_commitment_transaction_outputs` function we implemented earlier. As we'll see shortly, by producing a `Vec` of `OutputWithMetadata` for our HTLCs, `to_local` and `to_remote` outputs, it will make it very easy for us to sort all outputs in our commitment transaction appropriately.
+To begin this journey, we'll start by implementing a helper function that will produce a `Vec` of `OutputWithMetadata` for our HTLCs. This is very similar to the `create_commitment_transaction_outputs` function we implemented earlier. As we'll see shortly, by producing a `Vec` of `OutputWithMetadata` for our HTLCs, we'll be able to easily add them to the `Vec` containing our `to_local` and `to_remote` outputs so they can easily be sorted.
 
 <details>
   <summary>Click to see the OutputWithMetadata Type</summary>
 
-The OutputWithMetadata is a custom Type that represents a commitment transaction output. To be clear, this Type is not provided by Rust Bitcoin. It's something that is specific to the Programming Lightning course.
+As a reminder, the `OutputWithMetadata` is a custom type that represents a commitment transaction output. To be clear, this type is not provided by Rust Bitcoin. It's something that is specific to the Programming Lightning course.
 
-If you're familiar with Lightning and Hash Time-Locked Contracts (HTLCs), all of these fields may look familiar to you. If not, no worries at all! Below is a brief overview of what you'll need to know *for the purposes of this exercise*.
 - `value`: This is simply the amount of bitcoin locked to this output.
 - `script`: This is the script we're locking the bitcoin to. Since we've only learned about `to_local` and `to_remote` outputs thus far, you can imagine this holding the `ScriptBuf` type for those outputs.
-- `cltv_expiry`: This .... is a surprise for later! If you know how HTLCs work, then this the expiry! It makes things easier and more intuitive if we include this in the OutputWithMetadata since we'll need to use it for sorting our outputs. Since we haven't covered HTLCs yet (and there is no expiry for `to_local` and `to_remote` outputs), we'll simply set this value to `None` for this exercise.
-
+- `cltv_expiry`: This is the HTLC expiry (block height).
+- 
 ```rust
 pub struct OutputWithMetadata {
     pub value: u64,
@@ -44,20 +42,21 @@ pub struct OutputWithMetadata {
     pub cltv_expiry: Option<u32>,
 }
 ```
+
 </details>
 
 For this exercise, head over to `src/exercises/transactions/commitment.rs`, and let's implement `create_htlc_outputs`, which takes the following inputs:
-- `commitment_keys`: This is a custom sruct that holds all of the keys you'll need to complete this transaction. You can learn more about it below.
+
+- `commitment_keys`: This is a custom struct that holds all of the keys you'll need to complete this transaction. You can learn more about it below.
 - `offered_htlcs`: A slice of HTLCs that we offered to our counterparty. These will be encumbered with an HTLC Offerer script.
 - `received_htlcs`: A slice of HTLCs that our counterparty offered to us. These will be encumbered with an HTLC Receiver script.
 
+<details>
+  <summary>Click to see the CommitmentKeys Type</summary>
 
- <details>
-   <summary>Click to see the CommitmentKeys Type</summary>
+The `CommitmentKeys` type is meant to hold all of the public keys we'll need for any given channel state. In other words, these keys have already been tweaked by the **Per-Commitment Point** and are unique to a specific channel state.
 
-The CommitmentKeys type is meant to hold all of the public keys we'll need for any given channel state. In other words, these keys have already been tweaked by the **Per Commitment Point** and are unique to a specific channel state.
-
- ```rust
+```rust
 pub struct CommitmentKeys {
     /// The per-commitment point used to derive the other keys
     pub per_commitment_point: PublicKey,
@@ -75,22 +74,22 @@ pub struct CommitmentKeys {
     /// Local party's delayed payment key (for to_local output)
     pub local_delayed_payment_key: PublicKey,
 }
- ```
- </details>
+```
+
+</details>
 
 <details>
   <summary>Click to see the HTLCOutput Type</summary>
 
 The `HTLCOutput` type represents an HTLC that needs to be added to a commitment transaction.
-
 ```rust
 pub struct HTLCOutput {
     /// The amount of this HTLC in satoshis
     pub amount_sat: u64,
-    
+
     /// The payment hash (32 bytes)
     pub payment_hash: [u8; 32],
-    
+
     /// The CLTV expiry height for this HTLC
     pub cltv_expiry: u32,
 }
@@ -141,6 +140,31 @@ fn create_htlc_outputs(
     outputs
 }
 ```
+
+<details>
+  <summary>💡 Hint 💡</summary>
+
+This function creates `OutputWithMetadata` structs for each HTLC, which will later be combined with `to_local` and `to_remote` outputs and sorted according to BOLT 3.
+
+Here are a few hints to help you:
+
+1. **Initialize a mutable vector**
+   - Create a `Vec::new()` to hold all the HTLC outputs.
+
+2. **Iterate through offered HTLCs**
+   - For each offered HTLC, use `create_offered_htlc_script()` to build the script.
+   - When appending an output to the `Vec`, convert the witness script to a P2WSH output script using` .to_p2wsh()`.
+   - Set `cltv_expiry` to `Some(htlc.cltv_expiry)`.
+
+3. **Iterate through received HTLCs**
+   - For each received HTLC, use `create_received_htlc_script()` to build the script.
+   - When appending an output to the `Vec`, convert the witness script to a P2WSH output script using` .to_p2wsh()`.
+   - Set `cltv_expiry` to `Some(htlc.cltv_expiry)`.
+
+4. **Return the outputs vector**
+
+</details>
+
 <details>
   <summary>Step 1: Initialize the Outputs Vector</summary>
 
@@ -155,11 +179,11 @@ let mut outputs = Vec::new();
 <details>
   <summary>Step 2: Create Offered HTLC Outputs</summary>
 
-Next, we'll iterate through each offered HTLC and create an `OutputWithMetadata`. Remember, you can use the `create_offered_htlc_script` script that you created earlier to build the output script for the HTLC.
+Next, we'll iterate through each offered HTLC and create an `OutputWithMetadata`. Remember, you can use the `create_offered_htlc_script` function that you created earlier to build the output script for the HTLC.
 
 <details>
   <summary>Click to see create_offered_htlc_script function definition</summary>
-
+    
 ```rust
 pub fn create_offered_htlc_script(
     revocation_pubkey: &PublicKey,
@@ -192,11 +216,11 @@ for htlc in offered_htlcs {
 <details>
   <summary>Step 3: Create Received HTLC Outputs</summary>
 
-Now, let's iterate through each received HTLCs and create an `OutputWithMetadata`. Similar to the last step, you can use the `create_received_htlc_script` to build the output script for the HTLC.
+Now, let's iterate through each received HTLC and create an `OutputWithMetadata`. Similar to the last step, you can use the `create_received_htlc_script` function to build the output script for the HTLC.
 
 <details>
   <summary>Click to see create_received_htlc_script function definition</summary>
-
+    
 ```rust
 pub fn create_received_htlc_script(
     revocation_pubkey: &PublicKey,
@@ -233,10 +257,10 @@ for htlc in received_htlcs {
   <summary>Step 4: Return the Outputs</summary>
 
 Lastly, make sure to return the vector containing all HTLC outputs!
-
 ```rust
 outputs
 ```
+
 </details>
 
 
@@ -247,10 +271,9 @@ Now, let's put everything together and update the `create_commitment_transaction
 For this exercise, head back to `src/exercises/transactions/commitment.rs` and update the function to account for any `offered_htlcs` or `received_htlcs` that may be passed in.
 
 To successfully complete this exercise, you'll need to:
+
 1. Create HTLC outputs using the `create_htlc_outputs` helper function we just implemented.
-2. Sort all outputs (including HTLCs) according to BOLT #3 specifications.
-
-
+2. Sort all outputs (including HTLCs) according to BOLT 3 specifications.
 ```rust
 pub fn create_commitment_transaction(
     funding_outpoint: OutPoint,
@@ -325,10 +348,27 @@ pub fn create_commitment_transaction(
 ```
 
 <details>
+  <summary>💡 Hint 💡</summary>
+
+This exercise builds on the `create_commitment_transaction` function you implemented earlier. The main addition is incorporating HTLC outputs!
+
+Most of the work should have already been done (by you!) earlier in the course. Now, we just have to add the HTLC outputs and ensure they are sorted along with the `to_local` and `to_remote` outputs. Below are a few hints to help you do this!
+
+1. **Create HTLC outputs**
+   - Use the `create_htlc_outputs()` helper function we just implemented.
+
+2. **Combine all outputs**
+   - Use `.extend()` to add the HTLC outputs to the same `Vec` that holds the `to_local` and `to_remote` outputs.
+
+3. **Sort all outputs**
+   - Make sure you `sort_outputs()` after adding the HTLCs.
+
+</details>
+
+<details>
   <summary>Step 1: Create HTLC Outputs</summary>
 
-First, we need to create all the HTLC outputs. This should be relatively easy, as all we need to do is pass the relevant information into the function we just implemented! 
-
+First, we need to create all the HTLC outputs. This should be relatively easy, as all we need to do is pass the relevant information into the function we just implemented!
 ```rust
 let htlc_outputs = create_htlc_outputs(&commitment_keys, &offered_htlcs, &received_htlcs);
 ```
@@ -338,7 +378,8 @@ let htlc_outputs = create_htlc_outputs(&commitment_keys, &offered_htlcs, &receiv
 <details>
   <summary>Step 2: Sort All Outputs</summary>
 
-As we learned earlier in the course, the Lightning network spec (specifically, BOLT 3: [Transaction Output Ordering](https://github.com/lightning/bolts/blob/master/03-transactions.md#transaction-output-ordering)) specifies that outputs should be ordered in the following manner:
+As we learned earlier in the course, the Lightning Network spec (specifically, BOLT 3: [Transaction Output Ordering](https://github.com/lightning/bolts/blob/master/03-transactions.md#transaction-output-ordering)) specifies that outputs should be ordered in the following manner:
+
 - First, according to their value - smallest first.
   - If there is a tie, the output with the lexicographically lesser `scriptpubkey` comes first, then selecting the shorter script (if they differ in length).
   - For HTLC outputs, if there is a tie after sorting via the above, then they are ordered in increasing `cltv_expiry` order.
@@ -347,7 +388,7 @@ In a previous exercise, we used `sort_outputs` to sort a `Vec` of `OutputWithMet
 
 <details>
   <summary>Click to see sort_outputs function</summary>
-
+    
 ```rust
 pub fn sort_outputs(outputs: &mut Vec<OutputWithMetadata>) {
     outputs.sort_by(|a, b| {
@@ -358,17 +399,17 @@ pub fn sort_outputs(outputs: &mut Vec<OutputWithMetadata>) {
     });
 }
 ```
+
 </details>
 
-For this exercise, you'll need to make sure that the HTLC outputs are added to the `Vec` of outputs ***before*** passing it into the `sort_outputs` function. This will ensure all outputs are added in the correct order.
+For this exercise, you'll need to make sure that the HTLC outputs are added to the `Vec` of outputs ***before*** passing it into the `sort_outputs` function. This will ensure all outputs are sorted in the correct order.
 
 Below is an example of how you would string everything together.
-
 ```rust
-// initialize mutable object to hold outputs
+// Initialize mutable object to hold outputs
 let mut output_metadata = Vec::new();
 
-// build htlc outputs
+// Build HTLC outputs
 let htlc_outputs = create_htlc_outputs(&commitment_keys, &offered_htlcs, &received_htlcs);
 
 // Add to_local and to_remote outputs
@@ -380,4 +421,5 @@ output_metadata.extend(htlc_outputs);
 // Sort everything once
 sort_outputs(&mut output_metadata);
 ```
+
 </details>
