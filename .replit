@@ -67,3 +67,26 @@ run = ["sh", "-c", "cargo test"]
 
 [agent]
 expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Bitcoin Core Node"
+
+[[workflows.workflow]]
+name = "Bitcoin Core Node"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash start.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
