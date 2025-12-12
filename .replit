@@ -1,5 +1,7 @@
 run = "cargo test -- --test-threads=1"
 
+onBoot = "bash start.sh"
+
 hidden = [
   "target",
   ".tutorial",
