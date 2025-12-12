@@ -1,7 +1,5 @@
 run = "cargo test -- --test-threads=1"
 
-onBoot = "bash start.sh"
-
 hidden = [
   "target",
   ".tutorial",
@@ -19,6 +17,7 @@ hidden = [
   "Cargo.lock",
 ]
 entrypoint = "src/exercises/exercises.rs"
+modules = ["rust-stable"]
 
 [packager]
 language = "rust"
@@ -78,15 +77,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Bitcoin Core Node"
+args = "Run Tests"
 
 [[workflows.workflow]]
-name = "Bitcoin Core Node"
+name = "Run Tests"
 author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash start.sh"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "RUSTUP_TOOLCHAIN=none bash start.sh && cargo test -- --test-threads=1"

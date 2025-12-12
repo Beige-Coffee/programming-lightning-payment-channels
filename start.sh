@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Ensure the Rust toolchain is set to stable
-rustup default stable
-
 # Persistent data directory for Bitcoin Core
 BITCOIN_DATA_DIR=/home/runner/workspace/.bitcoin/
 # Ensure data directory exists
