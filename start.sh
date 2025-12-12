@@ -8,8 +8,17 @@ mkdir -p $BITCOIN_DATA_DIR
 # Remove stale lock files (if any)
 rm -f $BITCOIN_DATA_DIR/regtest/.lock
 
-# Start bitcoind if not already running
+# Check if bitcoind is already running and ready
 already_running=$(bitcoin-cli -datadir=$BITCOIN_DATA_DIR -regtest -rpcuser=bitcoind -rpcpassword=bitcoind getblockchaininfo 2>/dev/null)
+wallet_loaded=$(bitcoin-cli -datadir=$BITCOIN_DATA_DIR -regtest -rpcuser=bitcoind -rpcpassword=bitcoind listwallets 2>/dev/null | grep -o "pl")
+block_count=$(bitcoin-cli -datadir=$BITCOIN_DATA_DIR -regtest -rpcuser=bitcoind -rpcpassword=bitcoind getblockcount 2>/dev/null)
+
+# If everything is already set up, exit silently
+if [[ "$already_running" =~ "blocks" ]] && [[ -n "$wallet_loaded" ]] && (( block_count >= 150 )); then
+  exit 0
+fi
+
+# Start bitcoind if not already running
 if [[ "$already_running" =~ "blocks" ]]; then
   echo "bitcoind already running."
 else
