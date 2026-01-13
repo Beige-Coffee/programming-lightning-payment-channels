@@ -109,13 +109,16 @@ pub async fn run(funding_txid: String) {
         &remote_funding_privkey,
     );
 
+    let local_sig_first = true;
+
     let signed_tx = finalize_holder_commitment(
         our_channel_keys_manager,
         tx,
         0,
         &funding_script,
         funding_amount,
-        remote_funding_signature);
+        remote_funding_signature,
+        local_sig_first);
 
     println!("\n✅ Commitment Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());

@@ -240,6 +240,7 @@ pub fn finalize_holder_commitment(
     funding_script: &ScriptBuf,
     funding_amount: u64,
     remote_funding_signature: Vec<u8>,
+    local_sig_first: bool,
 ) -> Transaction {
 
     let local_funding_privkey = keys_manager.funding_key;
@@ -252,13 +253,22 @@ pub fn finalize_holder_commitment(
         &local_funding_privkey,
     );
 
-    // Build witness stack: [0, sig1, sig2, witnessScript]
-    let witness = Witness::from_slice(&[
-        &[][..], // OP_0 for CHECKMULTISIG bug
-        &local_funding_signature[..],
-        &remote_funding_signature[..],
-        funding_script.as_bytes(),
-    ]);
+    let witness =if local_sig_first {
+        Witness::from_slice(&[
+            &[][..], // OP_0 for CHECKMULTISIG bug
+            &local_funding_signature[..],
+            &remote_funding_signature[..],
+            funding_script.as_bytes(),
+        ])
+    } else {
+        Witness::from_slice(&[
+            &[][..], // OP_0 for CHECKMULTISIG bug
+            &remote_funding_signature[..],
+            &local_funding_signature[..],
+            funding_script.as_bytes(),
+        ])
+
+    };
 
     let mut signed_tx = tx;
     signed_tx.input[0].witness = witness;

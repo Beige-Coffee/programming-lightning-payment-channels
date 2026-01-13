@@ -1157,6 +1157,8 @@ fn test_21_finalize_holder_commitment() {
         "3045022100c3127b33dcc741dd6b05b1e63cbd1a9a7d816f37af9b6756fa2376b056f032370220408b96279808fe57eb7e463710804cdf4f108388bc5cf722d8c848d2c7f9f3b001"
     ).unwrap();
 
+    let local_sig_first = true;
+
     // Finalize the holder commitment
     let signed_tx = finalize_holder_commitment(
         channel_keys,
@@ -1165,6 +1167,7 @@ fn test_21_finalize_holder_commitment() {
         &funding_script,
         funding_amount,
         remote_signature,
+        local_sig_first
     );
 
     // BOLT 3 expected complete transaction
@@ -1970,6 +1973,8 @@ fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
         "3044022009b048187705a8cbc9ad73adbe5af148c3d012e1f067961486c822c7af08158c022006d66f3704cfab3eb2dc49dae24e4aa22a6910fc9b424007583204e3621af2e501"
     ).unwrap();
 
+    let local_sig_first = true;
+
     // Sign and finalize
     let signed_tx = finalize_holder_commitment(
         channel_keys,
@@ -1978,6 +1983,7 @@ fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
         &funding_script,
         funding_amount,
         remote_sig,
+        local_sig_first
     );
 
     // BOLT 3 expected
