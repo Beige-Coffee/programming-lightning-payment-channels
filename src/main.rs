@@ -65,7 +65,7 @@ struct Cli {
 /// CLI Subcommands
 #[derive(Subcommand)]
 enum Commands {
-    /// Create a funding transaction for a Lightning channel
+    /// Create a Funding Transaction for a Lightning channel
     Funding,
     /// Create a commitment transaction for a Lightning channel
     Commitment {

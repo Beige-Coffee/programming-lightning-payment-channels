@@ -134,8 +134,8 @@ pub async fn build_simple_htlc_spend_tx(
     println!();
 }
 
-/// Interactive CLI function to create a funding transaction
-/// This fetches a UTXO automatically and creates the funding transaction
+/// Interactive CLI function to create a Funding Transaction
+/// This fetches a UTXO automatically and creates the Funding Transaction
 pub async fn run(simple_htlc_txid: String) {
 
     // Connect to bitcoind

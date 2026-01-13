@@ -94,7 +94,7 @@ fn test_bolt3_funding_transaction() {
     
     println!("\n✓ Funding output script matches!\n");
     
-    // Create the funding transaction structure
+    // Create the Funding Transaction structure
     let mut txid_bytes = hex::decode(input_txid_hex).unwrap();
     txid_bytes.reverse(); // Bitcoin uses little-endian for txids
     

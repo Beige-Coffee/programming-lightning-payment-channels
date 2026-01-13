@@ -97,14 +97,14 @@ pub async fn build_simple_htlc_tx(
     println!();
 }
 
-/// Interactive CLI function to create a funding transaction
-/// This fetches a UTXO automatically and creates the funding transaction
+/// Interactive CLI function to create a Funding Transaction
+/// This fetches a UTXO automatically and creates the Funding Transaction
 pub async fn run() {
 
     // Connect to bitcoind
     let bitcoind = get_bitcoind_client().await;
 
-    // get an unspent output for funding transaction
+    // get an unspent output for Funding Transaction
     let tx_input = get_unspent_output(bitcoind.clone()).await;
 
     let htlc_amount_sat = 405_000;
