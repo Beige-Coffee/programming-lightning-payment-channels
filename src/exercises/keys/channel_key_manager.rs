@@ -21,7 +21,10 @@ impl ChannelKeyManager {
                 &self.secp_ctx,
                 &self.revocation_basepoint_secret,
             ),
-            payment_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.payment_basepoint_secret),
+            payment_basepoint: PublicKey::from_secret_key(
+                &self.secp_ctx,
+                &self.payment_basepoint_secret,
+            ),
             delayed_payment_basepoint: PublicKey::from_secret_key(
                 &self.secp_ctx,
                 &self.delayed_payment_basepoint_secret,
@@ -29,52 +32,50 @@ impl ChannelKeyManager {
             htlc_basepoint: PublicKey::from_secret_key(&self.secp_ctx, &self.htlc_basepoint_secret),
         }
     }
-
 }
 
 /// Exercise 7
 impl ChannelKeyManager {
+    pub fn sign_transaction_input_sighash_all(
+        &self,
+        tx: &Transaction,
+        input_index: usize,
+        script: &ScriptBuf,
+        amount: u64,
+        secret_key: &SecretKey,
+    ) -> Vec<u8> {
+        let mut sighash_cache = SighashCache::new(tx);
 
-        pub fn sign_transaction_input_sighash_all(
-            &self,
-            tx: &Transaction,
-            input_index: usize,
-            script: &ScriptBuf,
-            amount: u64,
-            secret_key: &SecretKey,
-        ) -> Vec<u8> {
-            let mut sighash_cache = SighashCache::new(tx);
-    
-            let sighash = sighash_cache
-                .p2wsh_signature_hash(
-                    input_index,
-                    script,
-                    Amount::from_sat(amount),
-                    EcdsaSighashType::All,
-                )
-                .expect("Valid sighash");
-    
-            let msg = Message::from_digest(sighash.to_byte_array());
-            let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
-    
-            let mut sig_bytes = sig.serialize_der().to_vec();
-            sig_bytes.push(EcdsaSighashType::All as u8);
-            sig_bytes
-        }
+        let sighash = sighash_cache
+            .p2wsh_signature_hash(
+                input_index,
+                script,
+                Amount::from_sat(amount),
+                EcdsaSighashType::All,
+            )
+            .expect("Valid sighash");
+
+        let msg = Message::from_digest(sighash.to_byte_array());
+        let sig = self.secp_ctx.sign_ecdsa(&msg, secret_key);
+
+        let mut sig_bytes = sig.serialize_der().to_vec();
+        sig_bytes.push(EcdsaSighashType::All as u8);
+        sig_bytes
     }
+}
 
 impl ChannelKeyManager {
     /// Exercise 10
     pub fn build_commitment_secret(&self, commitment_number: u64) -> [u8; 32] {
-        let mut res: [u8; 32] = self.commitment_seed.clone();
+        let mut p: [u8; 32] = self.commitment_seed.clone();
         for i in 0..48 {
-            let bitpos = 47 - i;
-            if commitment_number & (1 << bitpos) == (1 << bitpos) {
-                res[bitpos / 8] ^= 1 << (bitpos & 7);
-                res = Sha256::hash(&res).to_byte_array();
+            let bit_position = 47 - i;
+            if commitment_number & (1 << bit_position) == (1 << bit_position) {
+                p[bit_position / 8] ^= 1 << (bit_position & 7);
+                p = Sha256::hash(&p).to_byte_array();
             }
         }
-        res
+        p
     }
 
     /// Exercise 11
@@ -84,12 +85,6 @@ impl ChannelKeyManager {
         PublicKey::from_secret_key(&self.secp_ctx, &secret_key)
     }
 }
-
-
-
-
-
-
 
 impl ChannelKeyManager {
     // helper used for tests
