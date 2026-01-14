@@ -16,18 +16,35 @@ pub fn create_funding_transaction(
     local_funding_pubkey: &BitcoinPublicKey,
     remote_funding_pubkey: &BitcoinPublicKey,
 ) -> Transaction {
-
-    unimplemented!();
-
     // Create the 2-of-2 multisig script
+    let funding_script = create_funding_script(local_funding_pubkey, remote_funding_pubkey);
 
     // Convert to P2WSH output
+    let funding_script_pubkey = funding_script.to_p2wsh();
 
     // Create input (TxIn) spending from previous transaction
+    let tx_input = TxIn {
+            previous_output: OutPoint {
+                txid: input_txid,
+                vout: input_vout,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
+        };
 
     // Create output (TxOut) with funding amount locked to multisig script
+    let output = TxOut {
+            value: Amount::from_sat(funding_amount_sat),
+            script_pubkey: funding_script_pubkey,
+        };
 
     // Assemble & Return the transaction
-
+    Transaction {
+        version: Version::TWO,
+        lock_time: LockTime::ZERO,
+        input: vec![tx_input],
+        output: vec![output],
+    }
 }
 

@@ -1,0 +1,23 @@
+Funding Tx ID:
+
+Funding Tx Hex:
+
+________________________________________
+
+
+Commitment Tx (Refund) ID:
+
+Commitment Tx (Refund) Hex: 
+________________________________________
+
+
+Commitment Tx (With HTLC) ID:
+
+Commitment Tx (With HTLC) Hex: 
+
+________________________________________
+
+
+HTLC Timeout Tx ID: 
+
+HTLC Timeout Tx Hex:

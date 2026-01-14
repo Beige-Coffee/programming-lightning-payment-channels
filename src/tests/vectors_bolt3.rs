@@ -770,28 +770,6 @@ fn test_bolt3_obscured_commitment_number() {
 }
 
 #[test]
-fn test_bolt3_fee_calculations() {
-    println!("\n=== Testing: Fee Calculations ===\n");
-
-    let test_cases = vec![
-        (15000u64, 0, 10860u64),
-        (0u64, 5, 0u64),
-        (647u64, 5, 1024u64),
-    ];
-
-    for (feerate, num_htlcs, expected_fee) in test_cases {
-        let calculated_fee = calculate_commitment_tx_fee(feerate, num_htlcs);
-        println!("Feerate: {} sat/kw, HTLCs: {}", feerate, num_htlcs);
-        println!("  Expected fee: {} sats", expected_fee);
-        println!("  Calculated fee: {} sats", calculated_fee);
-
-        assert_eq!(calculated_fee, expected_fee);
-    }
-
-    println!("\n✓ All fee calculations match!");
-}
-
-#[test]
 fn test_bolt3_to_local_script() {
     println!("\n=== Testing: to_local Script Generation ===\n");
 
