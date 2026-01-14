@@ -55,7 +55,7 @@ impl ChannelKeyManager {
         
         unimplemented!();
 
-        // Start with commitment seed
+        // Initialize p as clone of commitment seed
 
         // Apply BOLT 3 derivation algorithm (flip bits and hash)
 
