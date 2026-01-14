@@ -9,7 +9,7 @@ use crate::scripts::create_to_local_script;
 use crate::transactions::fees::{calculate_htlc_success_tx_fee, calculate_htlc_timeout_tx_fee};
 use crate::types::{CommitmentKeys, ChannelKeyManager};
 
-/// Exercise 22: Create HTLC-timeout transaction
+/// Exercise 23: Create HTLC-timeout transaction
 pub fn create_htlc_timeout_transaction(
     htlc_outpoint: OutPoint,
     htlc_amount: u64,
@@ -55,7 +55,7 @@ pub fn create_htlc_timeout_transaction(
     }
 }
 
-/// Exercise 23: Finalize HTLC-timeout transaction
+/// Exercise 24: Finalize HTLC-timeout transaction
 pub fn finalize_htlc_timeout(
     keys_manager: ChannelKeyManager,
     tx: Transaction,
@@ -96,7 +96,7 @@ pub fn finalize_htlc_timeout(
 }
 
 
-/// Exercise 25: Create HTLC-success transaction
+/// Exercise 26: Create HTLC-success transaction
 pub fn create_htlc_success_transaction(
     htlc_outpoint: OutPoint,
     htlc_amount: u64,
@@ -135,7 +135,7 @@ pub fn create_htlc_success_transaction(
     }
 }
 
-/// Exercise 26: Finalize HTLC-success transaction
+/// Exercise 27: Finalize HTLC-success transaction
 pub fn finalize_htlc_success(
     keys_manager: ChannelKeyManager,
     tx: Transaction,

@@ -9,7 +9,7 @@ use bitcoin::{PubkeyHash, WPubkeyHash};
 use hex;
 
 
-/// Exercise 21: Create offered HTLC script
+/// Exercise 22: Create offered HTLC script
 pub fn create_offered_htlc_script(
     revocation_pubkey: &PublicKey,
     local_htlcpubkey: &PublicKey,
@@ -52,7 +52,7 @@ pub fn create_offered_htlc_script(
     // OP_ENDIF
 }
 
-/// Exercise 24: Create received HTLC script
+/// Exercise 25: Create received HTLC script
 pub fn create_received_htlc_script(
     revocation_pubkey: &PublicKey,
     local_htlcpubkey: &PublicKey,

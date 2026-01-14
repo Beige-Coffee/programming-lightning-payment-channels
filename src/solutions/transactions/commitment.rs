@@ -107,7 +107,7 @@ pub fn create_commitment_transaction_outputs(
     outputs
 }
 
-/// Exercise 27: Create HTLC outputs
+/// Exercise 28: Create HTLC outputs
 pub fn create_htlc_outputs(
     commitment_keys: &CommitmentKeys,
     offered_htlcs: &[HTLCOutput],
@@ -163,7 +163,7 @@ pub fn sort_outputs(outputs: &mut Vec<OutputWithMetadata>) {
     });
 }
 
-/// Exercise 20: Create complete commitment transaction
+/// Exercise 20 (& 29): Create complete commitment transaction
 pub fn create_commitment_transaction(
     funding_outpoint: OutPoint,
     to_local_value: u64,
@@ -239,7 +239,7 @@ pub fn create_commitment_transaction(
     tx
 }
 
-/// Exercise 20: Finalize holder commitment transaction
+/// Exercise 21: Finalize holder commitment transaction
 pub fn finalize_holder_commitment(
     keys_manager: ChannelKeyManager,
     tx: Transaction,
