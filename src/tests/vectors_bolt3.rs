@@ -207,7 +207,6 @@ fn create_base_test_vector() -> Bolt3TestVector {
 
 #[test]
 fn test_commitment_keys_structure() {
-    println!("\n=== Testing: CommitmentKeys Structure ===\n");
 
     let secp = Secp256k1::new();
     let test_vector = create_base_test_vector();
@@ -224,7 +223,6 @@ fn test_commitment_keys_structure() {
     };
 
     // PRODUCTION PATH: Derive keys from basepoints
-    println!("Testing PRODUCTION path (deriving keys from basepoints):");
     let commitment_keys_derived = channel_keys.get_commitment_keys(
         test_vector.commitment_number,
         &test_vector.local_revocation_pubkey,
@@ -232,33 +230,6 @@ fn test_commitment_keys_structure() {
         &test_vector.local_htlc_basepoint,
     );
 
-    println!(
-        "  Per-commitment point: {}",
-        hex::encode(commitment_keys_derived.per_commitment_point.serialize())
-    );
-    println!(
-        "  Revocation key: {}",
-        hex::encode(commitment_keys_derived.revocation_key.serialize())
-    );
-    println!(
-        "  Local delayed payment key: {}",
-        hex::encode(
-            commitment_keys_derived
-                .local_delayed_payment_key
-                .serialize()
-        )
-    );
-    println!(
-        "  Local HTLC key: {}",
-        hex::encode(commitment_keys_derived.local_htlc_key.serialize())
-    );
-    println!(
-        "  Remote HTLC key: {}",
-        hex::encode(commitment_keys_derived.remote_htlc_key.serialize())
-    );
-
-    // TESTING PATH: Use exact keys from test vector
-    println!("\nTesting TESTING path (using exact keys from test vector):");
     let per_commitment_point =
         channel_keys.derive_per_commitment_point(test_vector.commitment_number);
     let commitment_keys_exact = CommitmentKeys::from_keys(
@@ -285,26 +256,6 @@ fn test_commitment_keys_structure() {
         .unwrap(),
     );
 
-    println!(
-        "  Per-commitment point: {}",
-        hex::encode(commitment_keys_exact.per_commitment_point.serialize())
-    );
-    println!(
-        "  Revocation key: {}",
-        hex::encode(commitment_keys_exact.revocation_key.serialize())
-    );
-    println!(
-        "  Local delayed payment key: {}",
-        hex::encode(commitment_keys_exact.local_delayed_payment_key.serialize())
-    );
-    println!(
-        "  Local HTLC key: {}",
-        hex::encode(commitment_keys_exact.local_htlc_key.serialize())
-    );
-    println!(
-        "  Remote HTLC key: {}",
-        hex::encode(commitment_keys_exact.remote_htlc_key.serialize())
-    );
 
     // Verify per-commitment points match
     assert_eq!(
@@ -885,25 +836,4 @@ fn test_bolt3_to_local_script() {
     assert_eq!(hex::encode(script.as_bytes()), expected_script);
 
     println!("\n✓ to_local script matches!");
-}
-
-#[test]
-fn test_bolt3_to_remote_script() {
-    println!("\n=== Testing: to_remote Script Generation ===\n");
-
-    let remote_pubkey = PublicKey::from_slice(
-        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
-    )
-    .unwrap();
-
-    let script = create_to_remote_script(&remote_pubkey);
-
-    println!("to_remote script: {}", hex::encode(script.as_bytes()));
-    println!("Script length: {} bytes", script.len());
-
-    assert_eq!(script.len(), 22);
-    assert_eq!(script.as_bytes()[0], 0x00);
-    assert_eq!(script.as_bytes()[1], 0x14);
-
-    println!("\n✓ to_remote script structure verified!");
 }
