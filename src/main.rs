@@ -45,10 +45,6 @@ pub use transactions::commitment::*;
 pub use transactions::htlc::*;
 pub use workflows::*;
 
-// ============================================================================
-// CLI DEFINITION
-// ============================================================================
-
 /// Main CLI structure
 #[derive(Parser)]
 #[command(name = "Programming Lightning CLI")]

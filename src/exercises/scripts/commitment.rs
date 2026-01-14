@@ -9,7 +9,7 @@ use bitcoin::hashes::hash160::Hash as Hash160;
 /// Exercise 14: Create to_remote script (P2WPKH)
 /// This output goes to the counterparty and is immediately spendable by them
 pub fn create_to_remote_script(remote_pubkey: &PublicKey) -> ScriptBuf {
-    // P2WPKH format: OP_0 <20-byte-pubkey-hash>
+
     let pubkey_hash = Hash160::hash(&remote_pubkey.serialize());
     Builder::new()
         .push_int(0)

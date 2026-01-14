@@ -11,8 +11,6 @@ pub fn derive_revocation_public_key(
     per_commitment_point: &PublicKey,
     secp_ctx: &Secp256k1<All>,
 ) -> PublicKey {
-    // revocationpubkey = revocation_basepoint * SHA256(revocation_basepoint || per_commitment_point) +
-    //                    per_commitment_point * SHA256(per_commitment_point || revocation_basepoint)
 
     // First component
     let mut engine1 = Sha256::engine();
@@ -44,6 +42,7 @@ pub fn derive_revocation_private_key(
     per_commitment_secret: &SecretKey,
     secp_ctx: &Secp256k1<All>,
 ) -> SecretKey {
+
     let revocation_basepoint = PublicKey::from_secret_key(secp_ctx, revocation_basepoint_secret);
     let per_commitment_point = PublicKey::from_secret_key(secp_ctx, per_commitment_secret);
 
@@ -78,7 +77,7 @@ pub fn derive_public_key(
     per_commitment_point: &PublicKey,
     secp_ctx: &Secp256k1<All>,
 ) -> PublicKey {
-    // pubkey = basepoint + SHA256(per_commitment_point || basepoint)
+
     let mut engine = Sha256::engine();
     engine.input(&per_commitment_point.serialize());
     engine.input(&basepoint.serialize());
@@ -99,7 +98,7 @@ pub fn derive_private_key(
     per_commitment_point: &PublicKey,
     secp_ctx: &Secp256k1<All>,
 ) -> SecretKey {
-    // privkey = basepoint_secret + SHA256(per_commitment_point || basepoint)
+
     let basepoint = PublicKey::from_secret_key(secp_ctx, basepoint_secret);
 
     let mut engine = Sha256::engine();
@@ -116,7 +115,7 @@ pub fn derive_private_key(
 
 
 
-/// helper
+/// helper (Not an exercise)
 impl CommitmentKeys {
     pub fn from_basepoints(
         per_commitment_point: &PublicKey,

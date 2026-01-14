@@ -8,9 +8,7 @@ use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 use bitcoin::{OutPoint, Transaction, Witness};
 use hex;
 
-// ============================================================================
-// TEST-ONLY WITNESS CONSTRUCTION HELPERS
-// ============================================================================
+
 // These helper functions are used only in tests to construct witnesses
 // for verifying student implementations of finalize_htlc_success and
 // finalize_htlc_timeout.
@@ -25,7 +23,7 @@ fn create_htlc_success_witness(
     htlc_script: &ScriptBuf,
 ) -> Witness {
     Witness::from_slice(&[
-        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &[][..],
         &remote_htlc_signature[..],
         &local_htlc_signature[..],
         &payment_preimage[..],
@@ -42,10 +40,10 @@ fn create_htlc_timeout_witness(
     htlc_script: &ScriptBuf,
 ) -> Witness {
     Witness::from_slice(&[
-        &[][..],                        // OP_0 for CHECKMULTISIG bug
+        &[][..],
         &remote_htlc_signature[..],
         &local_htlc_signature[..],
-        &[][..],                        // OP_FALSE for timeout path
+        &[][..],
         htlc_script.as_bytes(),
     ])
 }
@@ -319,21 +317,6 @@ fn test_bolt3_simple_commitment_no_htlcs() {
 
 #[test]
 fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
-    // ========================================================================
-    // BOLT3 Appendix C: Commitment and HTLC Transaction Test Vectors
-    // ========================================================================
-    //
-    // Important Context:
-    // - These are LOCAL transactions (all payments to local are delayed)
-    // - Local is assumed to be the OPENER (opened the channel and pays fees)
-    // - Private keys shown as 32 bytes + trailing 1 (Bitcoin compressed key convention)
-    // - All signatures are deterministic using RFC6979 (HMAC-SHA256)
-    //
-    // Why "local is opener" matters:
-    //   - Local pays commitment transaction fees (deducted from to_local)
-    //   - Affects fee responsibility for HTLC transactions
-    //   - Important for correct transaction fee calculations
-    //
     // Common Parameters for All Test Vectors:
     //   funding_tx_id: 8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be
     //   funding_output_index: 0
@@ -354,8 +337,6 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     //   HTLC 4: remote->local, 4000000 msat, expiry 504
     //           preimage: 0404040404040404040404040404040404040404040404040404040404040404
     //
-    // This test: "commitment tx with all five HTLCs untrimmed (minimum feerate)"
-    // ========================================================================
 
     println!("\n=== Testing: commitment tx with all five HTLCs untrimmed (minimum feerate) ===\n");
 

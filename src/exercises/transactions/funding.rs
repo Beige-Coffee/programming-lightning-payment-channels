@@ -27,9 +27,9 @@ pub fn create_funding_transaction(
                 txid: input_txid,
                 vout: input_vout,
             },
-            script_sig: ScriptBuf::new(), // Empty for SegWit
-            sequence: Sequence::MAX,      // 0xffffffff (RBF disabled)
-            witness: Witness::new(),      // Witness will be added when signing
+            script_sig: ScriptBuf::new(), 
+            sequence: Sequence::MAX,
+            witness: Witness::new(),
         };
 
     let output = TxOut {

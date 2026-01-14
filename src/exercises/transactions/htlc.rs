@@ -9,12 +9,7 @@ use crate::scripts::create_to_local_script;
 use crate::transactions::fees::{calculate_htlc_success_tx_fee, calculate_htlc_timeout_tx_fee};
 use crate::types::{CommitmentKeys, ChannelKeyManager};
 
-// ============================================================================
-// HTLC TRANSACTIONS
-// ============================================================================
-
 /// Exercise 22: Create HTLC-timeout transaction (unsigned)
-/// 
 /// This function creates an HTLC-timeout transaction structure that spends an HTLC output
 /// on the commitment transaction after the CLTV timeout. The transaction is returned unsigned -
 /// use the signing functions to add signatures and witness data.
@@ -98,7 +93,6 @@ pub fn finalize_htlc_timeout(
 
 
 /// Exercise 25: Create HTLC-success transaction (unsigned)
-/// 
 /// This function creates an HTLC-success transaction structure that spends an HTLC output
 /// on the commitment transaction. The transaction is returned unsigned - use the signing
 /// functions to add signatures and witness data.

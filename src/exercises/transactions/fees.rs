@@ -21,7 +21,7 @@ pub fn calculate_htlc_success_tx_fee(feerate_per_kw: u64) -> u64 {
     (feerate_per_kw * HTLC_TX_WEIGHT) / 1000
 }
 
-/// An HTLC is considered "dust" if its amount is less than the dust limit
+/// For non-anchor & non-V3 channels, an HTLC is considered "dust" if its amount is less than the dust limit
 /// plus the fee required to claim it. Dust HTLCs are trimmed (not included)
 /// in the commitment transaction.
 pub fn is_htlc_dust(
