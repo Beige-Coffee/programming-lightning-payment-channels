@@ -11,7 +11,6 @@ use crate::scripts::{create_offered_htlc_script, create_received_htlc_script};
 use crate::scripts::{create_to_local_script, create_to_remote_script};
 use crate::transactions::fees::calculate_commitment_tx_fee;
 use crate::types::{ChannelKeyManager, CommitmentKeys, OutputWithMetadata, HTLCOutput};
-use crate::INITIAL_COMMITMENT_NUMBER;
 
 /// Exercise 16: Calculate obscure factor for commitment number
 pub fn get_commitment_transaction_number_obscure_factor(
