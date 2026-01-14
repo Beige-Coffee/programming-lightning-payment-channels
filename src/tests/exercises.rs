@@ -584,7 +584,7 @@ fn test_17_set_obscured_commitment_number() {
         );
 
     let obscured_commitment_transaction_number = commitment_transaction_number_obscure_factor
-        ^ (INITIAL_COMMITMENT_NUMBER - commitment_index);
+        ^ commitment_index;
 
     // Upper 24 bits in locktime
     let locktime_value =
@@ -929,8 +929,7 @@ fn test_20_create_commitment_transaction() {
     let to_local_value = 7_000_000;
     let to_remote_value = 3_000_000;
     // BOLT 3 commitment number is 42
-    let bolt3_commitment_number = 42;
-    let commitment_number = INITIAL_COMMITMENT_NUMBER - bolt3_commitment_number;
+    let commitment_number = 42;
     let to_self_delay = 144;
     let dust_limit_satoshis = 546;
     let feerate_per_kw = 0; // Use 0 fee for simpler verification
@@ -1104,8 +1103,7 @@ fn test_21_finalize_holder_commitment() {
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);
 
     // BOLT 3 commitment number is 42
-    let bolt3_commitment_number = 42;
-    let commitment_number = INITIAL_COMMITMENT_NUMBER - bolt3_commitment_number;
+    let commitment_number = 42;
 
     // Derive per_commitment_point for this commitment
     let per_commitment_point = channel_keys.derive_per_commitment_point(commitment_number);
@@ -1909,8 +1907,7 @@ fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
     let to_remote_sat = 3_000_000;
 
     // BOLT 3 commitment number is 42
-    let bolt3_commitment_number = 42;
-    let commitment_number = INITIAL_COMMITMENT_NUMBER - bolt3_commitment_number;
+    let commitment_number = 42;
 
     let to_self_delay = 144;
     let dust_limit_satoshis = 546;

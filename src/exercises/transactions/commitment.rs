@@ -48,8 +48,7 @@ pub fn set_obscured_commitment_number(
             &receiver_payment_basepoint,
         );
 
-    let obscured_commitment_transaction_number = commitment_transaction_number_obscure_factor
-        ^ (INITIAL_COMMITMENT_NUMBER - commitment_number);
+    let obscured_commitment_transaction_number = commitment_transaction_number_obscure_factor ^ commitment_number;
 
     // Upper 24 bits in locktime
     let locktime_value =

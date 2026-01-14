@@ -57,7 +57,7 @@ fn create_htlc_timeout_witness(
 //   funding_tx_id: 8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be
 //   funding_output_index: 0
 //   funding_amount_satoshi: 10000000
-//   commitment_number: 42 (from INITIAL_COMMITMENT_NUMBER - 42)
+//   commitment_number: 42
 //   local_delay: 144 blocks
 //   local_dust_limit_satoshi: 546
 fn create_base_test_vector() -> Bolt3TestVector {
@@ -178,7 +178,7 @@ fn create_base_test_vector() -> Bolt3TestVector {
         funding_output_index: 0,
         funding_amount_satoshi: 10_000_000,
         funding_witness_script,
-        commitment_number: INITIAL_COMMITMENT_NUMBER - 42,
+        commitment_number: 42,
         local_delay: 144,
         local_dust_limit_satoshi: 546,
         feerate_per_kw: 15000,
@@ -768,7 +768,7 @@ fn test_bolt3_obscured_commitment_number() {
     .unwrap();
 
     let commitment_number = 42u64;
-    let expected_obscured = 0x2bb038521914u64 ^ (INITIAL_COMMITMENT_NUMBER - 42);
+    let expected_obscured = 0x2bb038521914u64 ^ 42;
 
     let commitment_transaction_number_obscure_factor =
         get_commitment_transaction_number_obscure_factor(
@@ -777,7 +777,7 @@ fn test_bolt3_obscured_commitment_number() {
         );
 
     let actual_obscured = commitment_transaction_number_obscure_factor
-        ^ (INITIAL_COMMITMENT_NUMBER - commitment_number);
+        ^ commitment_number;
 
     println!("Commitment number: {}", commitment_number);
     println!("Expected obscured: 0x{:012x}", expected_obscured);
