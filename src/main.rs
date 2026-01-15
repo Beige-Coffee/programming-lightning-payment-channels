@@ -17,10 +17,6 @@ pub use bitcoin::Network;
 //   cargo test --features use-solutions
 //   cargo build --features use-solutions
 //
-// This allows you to:
-//   - Test changes to test code without requiring exercises to be complete
-//   - Verify that solutions pass all tests
-//   - Switch between implementations easily
 #[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/types.rs"]
 pub mod types;
