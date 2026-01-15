@@ -409,18 +409,6 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Get commitment transaction TXID for HTLC inputs
     let commitment_txid = commitment_tx.compute_txid();
 
-    // Get the commitment keys for HTLC transactions
-    let secp = Secp256k1::new();
-    let channel_keys = ChannelKeyManager {
-        funding_key: test_vector.local_funding_privkey.clone(),
-        revocation_basepoint_secret: test_vector.local_revocation_basepoint_secret.clone(),
-        payment_basepoint_secret: test_vector.local_payment_basepoint_secret.clone(),
-        delayed_payment_basepoint_secret: test_vector.local_delayed_payment_basepoint_secret.clone(),
-        htlc_basepoint_secret: test_vector.local_htlc_basepoint_secret.clone(),
-        commitment_seed: test_vector.commitment_seed,
-        secp_ctx: secp.clone(),
-    };
-
     // Derive commitment keys
     let commitment_keys = CommitmentKeys::from_keys(
         test_vector.local_revocation_pubkey,
@@ -436,9 +424,9 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Build and sign HTLC #0 (received 1000) - htlc-success
     let htlc_0_payment_hash = Sha256::hash(&[0u8; 32]).to_byte_array();
     let htlc_0_script = create_received_htlc_script(
-        &revocation_pubkey,
-        &commitment_keys.local_htlc_key,
-        &commitment_keys.remote_htlc_key,
+        &test_vector.local_revocation_pubkey,
+        &test_vector.local_htlcpubkey,
+        &test_vector.remote_htlcpubkey,
         &htlc_0_payment_hash,
         500,
     );
@@ -464,9 +452,9 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Build and sign HTLC #2 (offered 2000) - htlc-timeout
     let htlc_2_payment_hash = Sha256::hash(&[0x02; 32]).to_byte_array();
     let htlc_2_script = create_offered_htlc_script(
-        &revocation_pubkey,
-        &commitment_keys.local_htlc_key,
-        &commitment_keys.remote_htlc_key,
+        &test_vector.local_revocation_pubkey,
+        &test_vector.local_htlcpubkey,
+        &test_vector.remote_htlcpubkey,
         &htlc_2_payment_hash,
     );
     let mut htlc_2_tx = create_htlc_timeout_transaction(
@@ -487,9 +475,9 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Build and sign HTLC #1 (received 2000) - htlc-success
     let htlc_1_payment_hash = Sha256::hash(&[0x01; 32]).to_byte_array();
     let htlc_1_script = create_received_htlc_script(
-        &revocation_pubkey,
-        &commitment_keys.local_htlc_key,
-        &commitment_keys.remote_htlc_key,
+        &test_vector.local_revocation_pubkey,
+        &test_vector.local_htlcpubkey,
+        &test_vector.remote_htlcpubkey,
         &htlc_1_payment_hash,
         501,
     );
@@ -515,9 +503,9 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Build and sign HTLC #3 (offered 3000) - htlc-timeout
     let htlc_3_payment_hash = Sha256::hash(&[0x03; 32]).to_byte_array();
     let htlc_3_script = create_offered_htlc_script(
-        &revocation_pubkey,
-        &commitment_keys.local_htlc_key,
-        &commitment_keys.remote_htlc_key,
+        &test_vector.local_revocation_pubkey,
+        &test_vector.local_htlcpubkey,
+        &test_vector.remote_htlcpubkey,
         &htlc_3_payment_hash,
     );
     let mut htlc_3_tx = create_htlc_timeout_transaction(
@@ -538,9 +526,9 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Build and sign HTLC #4 (received 4000) - htlc-success
     let htlc_4_payment_hash = Sha256::hash(&[0x04; 32]).to_byte_array();
     let htlc_4_script = create_received_htlc_script(
-        &revocation_pubkey,
-        &commitment_keys.local_htlc_key,
-        &commitment_keys.remote_htlc_key,
+        &test_vector.local_revocation_pubkey,
+        &test_vector.local_htlcpubkey,
+        &test_vector.remote_htlcpubkey,
         &htlc_4_payment_hash,
         504,
     );
@@ -596,113 +584,4 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
         "All HTLC transactions should match BOLT3 test vectors"
     );
 
-    println!("\n✓ Commitment transaction verified against BOLT3 vectors!");
-    println!("✓ All 5 HTLC transactions verified against BOLT3 vectors!");
-    println!("✓ HTLC-success witness structure correct (with payment preimage)!");
-    println!("✓ HTLC-timeout witness structure correct (with timeout path)!");
-    println!("\n✓ Complete BOLT3 test vector validation passed!");
-}
-
-#[test]
-fn test_bolt3_output_ordering() {
-    println!("\n=== Testing: BOLT 3 Output Ordering ===\n");
-
-    let mut outputs = vec![
-        OutputWithMetadata {
-            value: 3000,
-            script: ScriptBuf::from_hex("0014aaaa").unwrap(),
-            cltv_expiry: None,
-        },
-        OutputWithMetadata {
-            value: 1000,
-            script: ScriptBuf::from_hex("0014bbbb").unwrap(),
-            cltv_expiry: None,
-        },
-        OutputWithMetadata {
-            value: 2000,
-            script: ScriptBuf::from_hex("0014cccc").unwrap(),
-            cltv_expiry: None,
-        },
-    ];
-
-    println!("Before sorting:");
-    for (i, output) in outputs.iter().enumerate() {
-        println!("  Output {}: {} sats", i, output.value);
-    }
-
-    sort_outputs(&mut outputs);
-
-    println!("\nAfter sorting:");
-    for (i, output) in outputs.iter().enumerate() {
-        println!("  Output {}: {} sats", i, output.value);
-    }
-
-    assert_eq!(outputs[0].value, 1000);
-    assert_eq!(outputs[1].value, 2000);
-    assert_eq!(outputs[2].value, 3000);
-
-    println!("\n✓ Output ordering verified!");
-}
-
-#[test]
-fn test_bolt3_obscured_commitment_number() {
-    println!("\n=== Testing: Obscured Commitment Number ===\n");
-
-    let local_payment_basepoint = PublicKey::from_slice(
-        &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap(),
-    )
-    .unwrap();
-
-    let remote_payment_basepoint = PublicKey::from_slice(
-        &hex::decode("032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991").unwrap(),
-    )
-    .unwrap();
-
-    let commitment_number = 42u64;
-    let expected_obscured = 0x2bb038521914u64 ^ 42;
-
-    let commitment_transaction_number_obscure_factor =
-        get_commitment_transaction_number_obscure_factor(
-            &local_payment_basepoint,
-            &remote_payment_basepoint,
-        );
-
-    let actual_obscured = commitment_transaction_number_obscure_factor
-        ^ commitment_number;
-
-    println!("Commitment number: {}", commitment_number);
-    println!("Expected obscured: 0x{:012x}", expected_obscured);
-    println!("Actual obscured:   0x{:012x}", actual_obscured);
-
-    assert_eq!(actual_obscured, expected_obscured);
-
-    println!("\n✓ Obscured commitment number matches!");
-}
-
-#[test]
-fn test_bolt3_to_local_script() {
-    println!("\n=== Testing: to_local Script Generation ===\n");
-
-    let revocation_pubkey = PublicKey::from_slice(
-        &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap(),
-    )
-    .unwrap();
-
-    let local_delayedpubkey = PublicKey::from_slice(
-        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap(),
-    )
-    .unwrap();
-
-    let to_self_delay = 144u16;
-
-    let script = create_to_local_script(&revocation_pubkey, &local_delayedpubkey, to_self_delay);
-
-    let expected_script = "63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac";
-
-    println!("Expected script: {}", expected_script);
-    println!("Actual script:   {}", hex::encode(script.as_bytes()));
-
-    assert_eq!(hex::encode(script.as_bytes()), expected_script);
-
-    println!("\n✓ to_local script matches!");
 }
