@@ -251,6 +251,8 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     // Commit Tx Parameters are the same as simple commitment tx with no HTLCs
     //
     // HTLC Parameters:
+    // https://github.com/lightning/bolts/blob/master/03-transactions.md#appendix-c-commitment-and-htlc-transaction-test-vectors
+    //
     //   HTLC 0: remote->local, 1000000 msat, expiry 500
     //           preimage: 0000000000000000000000000000000000000000000000000000000000000000
     //   HTLC 1: remote->local, 2000000 msat, expiry 501
