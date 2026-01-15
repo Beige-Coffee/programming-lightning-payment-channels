@@ -1,37 +1,34 @@
 # create an alias to use bitcoin-cli without having to provide the network or rpc authentication information
-alias bcli='bitcoin-cli -regtest -rpcuser=bitcoind -rpcpassword=bitcoind'
+alias bitcoin-cli='bitcoin-cli -regtest -rpcuser=bitcoind -rpcpassword=bitcoind'
 
 # an alias for getting a new address from core
-alias newaddress='bcli getnewaddress "" "bech32"'
+alias newaddress='bitcoin-cli getnewaddress "" "bech32"'
 
 # an alias for getting a new address from core
-alias listunspent='bcli listunspent'
+alias listunspent='bitcoin-cli listunspent'
 
 # an alias for broadcasting a transaction
-alias sendtx='bcli sendrawtransaction'
+alias sendtx='bitcoin-cli sendrawtransaction'
 
 # an alias for decoding a transaction
-alias decodetx='bcli decoderawtransaction'
+alias decodetx='bitcoin-cli decoderawtransaction'
 
 # an alias for getting a transaction
-alias gettx='bcli gettransaction'
+alias gettx='bitcoin-cli gettransaction'
 
 # an alias for decoding a transaction
-alias getutxo='bcli gettxout'
-
-# an alias for getting mempool transactions
-alias getmempool='bcli getrawmempool'
+alias getutxo='bitcoin-cli gettxout'
 
 # usage: mine x
 # where x is the number of blocks to mine
 # useful when opening channels and you need to get the funding tx confirmed
 function mine() {
-  bcli generatetoaddress $1 $(newaddress)
+  bitcoin-cli generatetoaddress $1 $(newaddress)
 }
 
 # usage: fund x
 # where x is the bitcoin address to fund
 # this sends 1 bitcoin to the address
 function fund() {
-  bcli sendtoaddress "$1" 1
+  bitcoin-cli sendtoaddress "$1" 1
 }
