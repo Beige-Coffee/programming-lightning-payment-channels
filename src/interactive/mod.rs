@@ -1,4 +1,4 @@
-// Interactive CLI modules for Programming Lightning workshop
+// Interactive CLI modules for Programming Lightning
 // These modules provide user-friendly interfaces for creating and managing
 // Lightning Network transactions through the command line.
 

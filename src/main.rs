@@ -82,7 +82,7 @@ pub use workflows::*;
 #[derive(Parser)]
 #[command(name = "Programming Lightning CLI")]
 #[command(version = "1.0")]
-#[command(about = "CLI for Programming Lightning Workshop", long_about = None)]
+#[command(about = "CLI for Programming Lightning", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
