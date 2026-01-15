@@ -77,15 +77,15 @@ pub async fn run(funding_txid: String) {
         funding_outpoint,
         to_local_value,
         to_remote_value,
-        &commitment_keys, // Pre-derived keys!
+        &commitment_keys,
         &local_payment_basepoint,
         &remote_payment_basepoint,
         commitment_number,
         to_self_delay,
         dust_limit_sats,
         feerate_per_kw,
-        &offered_htlcs,  // HTLCs included from the start
-        &received_htlcs, // HTLCs included from the start
+        &offered_htlcs,
+        &received_htlcs,
     );
 
     let funding_script = create_funding_script(&local_funding_pubkey, &remote_funding_pubkey);

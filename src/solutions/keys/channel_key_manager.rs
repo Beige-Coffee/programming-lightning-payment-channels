@@ -75,7 +75,7 @@ impl ChannelKeyManager {
 impl ChannelKeyManager {
     /// Exercise 10: Build per-commitment secret
     pub fn build_commitment_secret(&self, commitment_number: u64) -> [u8; 32] {
-        // Initialize P as clone of commitment seed
+        // Initialize p as clone of commitment seed
         let mut p: [u8; 32] = self.commitment_seed.clone();
 
         // Apply BOLT 3 derivation algorithm (flip bits and hash)
