@@ -1,2 +1,3 @@
 /target/
 .bitcoin
+.DS_Store
