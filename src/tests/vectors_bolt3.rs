@@ -52,6 +52,8 @@ fn create_htlc_timeout_witness(
 // Based on BOLT3 Appendix C: Commitment and HTLC Transaction Test Vectors
 //
 // Common parameters used across all BOLT3 test vectors:
+// https://github.com/lightning/bolts/blob/master/03-transactions.md#appendix-b-funding-transaction-test-vectors
+//
 //   funding_tx_id: 8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be
 //   funding_output_index: 0
 //   funding_amount_satoshi: 10000000
@@ -82,6 +84,7 @@ fn create_base_test_vector() -> Bolt3TestVector {
     )
     .unwrap();
 
+    // this is not listed in BOLT3 test vectors, so a placeholder is used
     let local_revocation_basepoint_secret = SecretKey::from_slice(
         &hex::decode("bb13b121cdc357cd2e608b0aea294afca36e2b34cf958e2e6451a2f274694491").unwrap()
             [..32],
@@ -94,6 +97,7 @@ fn create_base_test_vector() -> Bolt3TestVector {
     )
     .unwrap();
 
+    // only local_delayedpubkey is provided in BOLT3 test vectors, so a placeholder is used
     let local_delayed_payment_basepoint_secret = SecretKey::from_slice(
         &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap()
             [..32],
@@ -105,7 +109,7 @@ fn create_base_test_vector() -> Bolt3TestVector {
     )
     .unwrap();
 
-    // same as basepoint b/c not provided in BOLT test vectors
+    // only local_htlc_basepoint is provided in BOLT3 test vectors, so a placeholder is used
     let local_htlc_basepoint_secret = SecretKey::from_slice(
         &hex::decode("034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa").unwrap()
             [..32],
@@ -132,6 +136,7 @@ fn create_base_test_vector() -> Bolt3TestVector {
     )
     .unwrap();
 
+    // not provided in BOLT3 test vectors, so a placeholder is used
     let remote_delayed_payment_basepoint = PublicKey::from_slice(
         &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap(),
     )
