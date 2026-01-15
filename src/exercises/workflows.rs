@@ -44,21 +44,20 @@ pub fn build_complete_commitment_transaction(
         .cloned()
         .collect();
 
-    // Create complete commitment tx with ALL outputs at once (LDK-style)
-    // This is more efficient than creating the base tx and then adding HTLCs
+    // create commitment transaction using exercise students completed
     let tx = create_commitment_transaction(
         funding_outpoint,
         to_local_value,
         to_remote_value,
-        commitment_keys, // Pre-derived keys!
+        commitment_keys,
         local_payment_basepoint,
         remote_payment_basepoint,
         commitment_number,
         to_self_delay,
         dust_limit_satoshis,
         feerate_per_kw,
-        &offered_trimmed,  // HTLCs included from the start
-        &received_trimmed, // HTLCs included from the start
+        &offered_trimmed,
+        &received_trimmed,
     );
 
     tx

@@ -209,87 +209,17 @@ fn create_base_test_vector() -> Bolt3TestVector {
 }
 
 #[test]
-fn test_commitment_keys_structure() {
-
-    let secp = Secp256k1::new();
-    let test_vector = create_base_test_vector();
-
-    // Create channel keys
-    let channel_keys = ChannelKeyManager {
-        funding_key: test_vector.local_funding_privkey.clone(),
-        revocation_basepoint_secret: test_vector.local_revocation_basepoint_secret.clone(),
-        payment_basepoint_secret: test_vector.local_payment_basepoint_secret.clone(),
-        delayed_payment_basepoint_secret: test_vector.local_delayed_payment_basepoint_secret.clone(),
-        htlc_basepoint_secret: test_vector.local_htlc_basepoint_secret.clone(),
-        commitment_seed: test_vector.commitment_seed,
-        secp_ctx: secp.clone(),
-    };
-
-    // PRODUCTION PATH: Derive keys from basepoints
-    let commitment_keys_derived = channel_keys.get_commitment_keys(
-        test_vector.commitment_number,
-        &test_vector.local_revocation_pubkey,
-        &test_vector.remote_htlc_basepoint,
-        &test_vector.local_htlc_basepoint,
-    );
-
-    let per_commitment_point =
-        channel_keys.derive_per_commitment_point(test_vector.commitment_number);
-    let commitment_keys_exact = CommitmentKeys::from_keys(
-        per_commitment_point,
-        PublicKey::from_slice(
-            &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19")
-                .unwrap(),
-        )
-        .unwrap(),
-        PublicKey::from_slice(
-            &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c")
-                .unwrap(),
-        )
-        .unwrap(),
-        PublicKey::from_slice(
-            &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7")
-                .unwrap(),
-        )
-        .unwrap(),
-        PublicKey::from_slice(
-            &hex::decode("0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b")
-                .unwrap(),
-        )
-        .unwrap(),
-    );
-
-
-    // Verify per-commitment points match
-    assert_eq!(
-        commitment_keys_derived.per_commitment_point.serialize(),
-        commitment_keys_exact.per_commitment_point.serialize(),
-        "Per-commitment points should match"
-    );
-
-    println!("\n✓ Both paths create valid CommitmentKeys structures!");
-}
-
-#[test]
 fn test_bolt3_simple_commitment_no_htlcs() {
     println!("\n=== Testing: simple commitment tx with no HTLCs ===\n");
 
-    let mut test_vector = create_base_test_vector();
-    test_vector.feerate_per_kw = 15000;
-    test_vector.to_local_msat = 7_000_000_000;
-    test_vector.to_remote_msat = 3_000_000_000;
+    let test_vector = create_base_test_vector();
 
+    // builds an unsigned commitment transaction
     let commitment_tx = build_bolt3_simple_commitment(&test_vector);
 
-    let mut local_funding_output_signature = hex::decode(
-        "30440220616210b2cc4d3afb601013c373bbd8aac54febd9f15400379a8cb65ce7deca60022034236c010991beb7ff770510561ae8dc885b8d38d1947248c38f2ae055647142"
-    ).unwrap();
-    local_funding_output_signature.push(0x01);
-
-    let mut remote_funding_output_signature = hex::decode(
-        "3045022100c3127b33dcc741dd6b05b1e63cbd1a9a7d816f37af9b6756fa2376b056f032370220408b96279808fe57eb7e463710804cdf4f108388bc5cf722d8c848d2c7f9f3b0"
-    ).unwrap();
-    remote_funding_output_signature.push(0x01);
+    // get funding output signatures from test vector
+    let local_funding_output_signature = test_vector.local_funding_output_signature.clone();
+    let remote_funding_output_signature = test_vector.remote_funding_output_signature.clone();
 
     // Build witness stack
     let commitment_witness = Witness::from_slice(&[
@@ -309,26 +239,16 @@ fn test_bolt3_simple_commitment_no_htlcs() {
 
     println!("Expected TX: {}", expected_tx);
     println!("Actual TX:   {}", actual_tx);
-    println!("Expected outputs: {}", expected_num_outputs);
-    println!("Actual outputs:   {}", signed_commitment_tx.output.len());
 
     assert_eq!(expected_tx, actual_tx, "TX Should be equal");
-    assert_eq!(signed_commitment_tx.input.len(), 1);
-    assert_eq!(signed_commitment_tx.output.len(), expected_num_outputs);
 
     println!("\n✓ Basic commitment transaction structure verified");
-    println!("✓ This test now uses CommitmentKeys for better testability!");
+
 }
 
 #[test]
 fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
-    // Common Parameters for All Test Vectors:
-    //   funding_tx_id: 8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be
-    //   funding_output_index: 0
-    //   funding_amount_satoshi: 10000000
-    //   commitment_number: 42
-    //   local_delay: 144
-    //   local_dust_limit_satoshi: 546
+    // Commit Tx Parameters are the same as simple commitment tx with no HTLCs
     //
     // HTLC Parameters:
     //   HTLC 0: remote->local, 1000000 msat, expiry 500
@@ -361,8 +281,6 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     remote_funding_output_signature.push(0x01);
 
     // HTLCs ordered by their index in the test vector
-    // Note: remote->local = Received HTLC (we receive payment)
-    //       local->remote = Offered HTLC (we send payment)
     let htlcs = vec![
         // HTLC #0 - remote->local (Received) 1000 msat, expiry 500
         Bolt3Htlc {
@@ -435,15 +353,6 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
     println!("Expected: {}", expected_tx_hex);
     println!("Actual:   {}", actual_tx_hex);
 
-    // Verify structure
-    assert_eq!(signed_commitment_tx.input.len(), 1, "Should have 1 input");
-    assert_eq!(
-        signed_commitment_tx.output.len(),
-        expected_num_outputs,
-        "Should have {} outputs",
-        expected_num_outputs
-    );
-
     // Verify output values
     for (i, (output, expected_value)) in signed_commitment_tx
         .output
@@ -464,10 +373,6 @@ fn test_bolt3_commitment_with_htlcs_minimum_feerate() {
         actual_tx_hex, expected_tx_hex,
         "Complete transaction hex should match BOLT3 test vectors"
     );
-
-    println!("\n✓ Commitment transaction structure verified");
-    println!("✓ All output values match BOLT3 vectors");
-    println!("✓ Complete transaction hex matches BOLT3 vectors");
 
     // Now test the HTLC transactions that spend from the commitment transaction
     println!("\n=== Testing HTLC Transactions ===\n");

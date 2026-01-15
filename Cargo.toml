@@ -3,6 +3,14 @@ name = "pl-00-intro"
 version = "0.1.0"
 edition = "2021"  # Fixed: was "2024"
 
+[features]
+default = []
+# When enabled, tests will use src/solutions instead of src/exercises
+# Usage:
+#   - Default (exercises): cargo test
+#   - With solutions: cargo test --features use-solutions
+use-solutions = []
+
 [dependencies]
 lightning = { version = "0.0.125", features = ["max_level_trace"] }
 lightning-block-sync = { version = "0.0.125", features = [ "rpc-client", "tokio" ] }

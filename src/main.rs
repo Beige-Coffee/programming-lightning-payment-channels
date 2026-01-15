@@ -8,20 +8,57 @@ use ripemd::{Ripemd160};
 pub use bitcoin::secp256k1::{Secp256k1, SecretKey, PublicKey, All};
 pub use bitcoin::Network;
 
-// Module declarations - pulling from exercises folder
+// Module declarations - pulling from exercises or solutions folder
+// 
+// By default, modules are loaded from src/exercises/ (for students to complete).
+// To use src/solutions/ instead (e.g., for testing or development), enable the
+// "use-solutions" feature flag:
+//
+//   cargo test --features use-solutions
+//   cargo build --features use-solutions
+//
+// This allows you to:
+//   - Test changes to test code without requiring exercises to be complete
+//   - Verify that solutions pass all tests
+//   - Switch between implementations easily
+#[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/types.rs"]
 pub mod types;
 
+#[cfg(feature = "use-solutions")]
+#[path = "solutions/types.rs"]
+pub mod types;
+
+#[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/keys/mod.rs"]
 pub mod keys;
 
+#[cfg(feature = "use-solutions")]
+#[path = "solutions/keys/mod.rs"]
+pub mod keys;
+
+#[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/scripts/mod.rs"]
 pub mod scripts;
 
+#[cfg(feature = "use-solutions")]
+#[path = "solutions/scripts/mod.rs"]
+pub mod scripts;
+
+#[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/transactions/mod.rs"]
 pub mod transactions;
 
+#[cfg(feature = "use-solutions")]
+#[path = "solutions/transactions/mod.rs"]
+pub mod transactions;
+
+#[cfg(not(feature = "use-solutions"))]
 #[path = "exercises/workflows.rs"]
+pub mod workflows;
+
+#[cfg(feature = "use-solutions")]
+#[path = "solutions/workflows.rs"]
 pub mod workflows;
 
 // Internal utilities

@@ -44,21 +44,21 @@ pub fn build_complete_commitment_transaction(
         .cloned()
         .collect();
 
-    // Create complete commitment tx with ALL outputs at once (LDK-style)
-    // This is more efficient than creating the base tx and then adding HTLCs
+
+    // create commitment transaction using exercise students completed
     let tx = create_commitment_transaction(
         funding_outpoint,
         to_local_value,
         to_remote_value,
-        commitment_keys, // Pre-derived keys!
+        commitment_keys,
         local_payment_basepoint,
         remote_payment_basepoint,
         commitment_number,
         to_self_delay,
         dust_limit_satoshis,
         feerate_per_kw,
-        &offered_trimmed,  // HTLCs included from the start
-        &received_trimmed, // HTLCs included from the start
+        &offered_trimmed,
+        &received_trimmed,
     );
 
     tx
@@ -130,7 +130,7 @@ pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transacti
         vout: test_vector.funding_output_index,
     };
 
-    // OPTION 2: Use exact keys from test vector (testing path)
+    // Use exact keys from test vector (testing path)
     // For BOLT 3 test vectors, we use exact keys they provide
     let per_commitment_point =
         channel_keys.derive_per_commitment_point(test_vector.commitment_number);
@@ -203,25 +203,6 @@ pub fn build_bolt3_commitment_with_htlcs(
         test_vector.local_delayedpubkey,
         test_vector.local_htlcpubkey,
         test_vector.remote_htlcpubkey,
-    );
-
-    // DEBUG: Print what keys we're actually using
-    println!("\n=== HTLC Keys Debug ===");
-    println!(
-        "Expected local_htlcpubkey:  {}",
-        hex::encode(test_vector.local_htlcpubkey.serialize())
-    );
-    println!(
-        "Actual local_htlc_key:      {}",
-        hex::encode(commitment_keys.local_htlc_key.serialize())
-    );
-    println!(
-        "Expected remote_htlcpubkey: {}",
-        hex::encode(test_vector.remote_htlcpubkey.serialize())
-    );
-    println!(
-        "Actual remote_htlc_key:     {}",
-        hex::encode(commitment_keys.remote_htlc_key.serialize())
     );
 
     // Separate HTLCs by direction
