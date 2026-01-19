@@ -2,7 +2,7 @@
 
 Welcome to **Programming Lightning** - an educational resource that teaches developers and technically-inclined individuals how the Lightning Network works by coding important pieces of the protocol from scratch.
 
-Inspired by *Programming Bitcoin*, this course provides hands-on, protocol-level learning to help you deeply understand Lightning's inner workings, preparing you to contribute to Lightning implementations, protocol design, or application development.
+Inspired by *[Programming Bitcoin](https://github.com/jimmysong/programmingbitcoin)*, this course provides hands-on, protocol-level learning to help you deeply understand Lightning's inner workings, preparing you to contribute to Lightning implementations, protocol design, or application development.
 
 ## About This Module
 
