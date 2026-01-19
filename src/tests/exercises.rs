@@ -41,28 +41,41 @@ fn test_01_new_keys_manager() {
 fn test_02_derive_key() {
     let seed = [0x01; 32];
     let bitcoin_network = Network::Bitcoin;
-    let multisig_index = 0;
     let channel_index = 0;
     let keys_manager = new_keys_manager(seed, bitcoin_network);
 
-    // Manually derive the expected key using the same path
-    let path_str = format!("m/1017'/0'/{}'/0/{}", multisig_index, channel_index);
-    let path = DerivationPath::from_str(&path_str).unwrap();
-    let expected_derived = keys_manager
-        .master_key
-        .derive_priv(&keys_manager.secp_ctx, &path)
-        .unwrap();
-    let expected_funding_key = expected_derived.private_key;
+    // Test all key families
+    let key_families = vec![
+        KeyFamily::MultiSig,
+        KeyFamily::RevocationBase,
+        KeyFamily::HtlcBase,
+        KeyFamily::PaymentBase,
+        KeyFamily::DelayBase,
+        KeyFamily::CommitmentSeed,
+    ];
 
-    // Use the derive_key method
-    let actual_funding_key = keys_manager.derive_key(KeyFamily::MultiSig, channel_index);
+    for key_family in key_families {
+        // Manually derive the expected key using the same path
+        let path_str = format!("m/1017'/0'/{}'/0/{}", key_family as u32, channel_index);
+        let path = DerivationPath::from_str(&path_str).unwrap();
+        let expected_derived = keys_manager
+            .master_key
+            .derive_priv(&keys_manager.secp_ctx, &path)
+            .unwrap();
+        let expected_key = expected_derived.private_key;
 
-    assert_eq!(
-        expected_funding_key.secret_bytes(),
-        actual_funding_key.secret_bytes(),
-        "Derived funding key should match expected key"
-    );
+        // Use the derive_key method
+        let actual_key = keys_manager.derive_key(key_family, channel_index);
+
+        assert_eq!(
+            expected_key.secret_bytes(),
+            actual_key.secret_bytes(),
+            "Derived key for {:?} should match expected key",
+            key_family
+        );
+    }
 }
+
 
 #[test]
 fn test_03_derive_channel_keys() {
@@ -220,12 +233,14 @@ fn test_06_create_funding_transaction() {
     // Funding transaction details
     let txid_hex = "8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be";
     let mut txid_bytes = hex::decode(txid_hex).unwrap();
-    txid_bytes.reverse(); // Bitcoin uses little-endian for txids
+    txid_bytes.reverse();
 
     let input_txid = bitcoin::Txid::from_slice(&txid_bytes).unwrap();
 
     let input_vout = 0;
     let funding_amount_sat = 500000;
+
+    let funding_tx_hex = "0200000001bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a4884890000000000ffffffff0120a1070000000000220020313220af947477a37bcbbf3bb5def854df44e93f8aaad1831ea13a7db215406a00000000";
 
     let tx = create_funding_transaction(
         input_txid,
@@ -234,6 +249,15 @@ fn test_06_create_funding_transaction() {
         &local_funding_pubkey,
         &remote_funding_pubkey,
     );
+
+    let tx_hex = hex::encode(bitcoin::consensus::serialize(&tx));
+
+    assert_eq!(
+        funding_tx_hex,
+        tx_hex,
+        "Funding transaction should match provided solution"
+    );
+
 }
 
 #[test]

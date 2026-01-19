@@ -1,8 +1,9 @@
-// ============================================================================
+
 // FEE CALCULATIONS
 // ============================================================================
+
 /// Fee calculation: (feerate_per_kw * weight) / 1000
-/// Weight = 724 + (172 * num_untrimmed_htlcs)
+/// Commitment Transaction Weight = 724 + (172 * num_untrimmed_htlcs)
 pub fn calculate_commitment_tx_fee(
     feerate_per_kw: u64,
     num_untrimmed_htlcs: usize,

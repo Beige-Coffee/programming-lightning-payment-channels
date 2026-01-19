@@ -3,7 +3,6 @@ use bitcoin::script::ScriptBuf;
 use bitcoin::secp256k1::{All, PublicKey, Secp256k1, SecretKey};
 use bitcoin::Network;
 
-// ============================================================================
 // KEY FAMILY ENUM
 // ============================================================================
 
@@ -15,10 +14,8 @@ pub enum KeyFamily {
     PaymentBase = 3,
     DelayBase = 4,
     CommitmentSeed = 5,
-    NodeKey = 6,
 }
 
-// ============================================================================
 // KEY MANAGEMENT STRUCTURES
 // ============================================================================
 
@@ -30,12 +27,19 @@ pub struct KeysManager {
 
 /// Manages cryptographic operations for Lightning channel.
 pub struct ChannelKeyManager {
+    /// Secret key used to sign commitment transactions
     pub funding_key: SecretKey,
+    /// Base secret used to derive per-commitment revocation keys
     pub revocation_basepoint_secret: SecretKey,
+    /// Secret key for immediately spendable balance
     pub payment_basepoint_secret: SecretKey,
+    /// Base secret used to derive per-commitment delayed payment key
     pub delayed_payment_basepoint_secret: SecretKey,
+    /// Base secret used to derive per-commitment HTLC key
     pub htlc_basepoint_secret: SecretKey,
+    /// Seed used to generate per-commitment points
     pub commitment_seed: [u8; 32],
+    /// Secp256k1 context for cryptographic operations
     pub secp_ctx: Secp256k1<All>,
 }
 
@@ -54,7 +58,31 @@ pub struct ChannelPublicKeys {
     pub htlc_basepoint: PublicKey,
 }
 
+// COMMITMENT KEYS STRUCTURE)
 // ============================================================================
+
+/// The set of public keys which are used in the creation of one commitment transaction.
+/// These are derived from the channel base keys and per-commitment point.
+#[derive(Clone, Debug)]
+pub struct CommitmentKeys {
+    /// The per-commitment point used to derive the other keys
+    pub per_commitment_point: PublicKey,
+
+    /// The revocation key which allows the broadcaster's counterparty to punish
+    /// them if they broadcast an old state
+    pub revocation_key: PublicKey,
+
+    /// Local party's HTLC key (derived from local_htlc_basepoint)
+    pub local_htlc_key: PublicKey,
+
+    /// Remote party's HTLC key (derived from remote_htlc_basepoint)
+    pub remote_htlc_key: PublicKey,
+
+    /// Local party's delayed payment key (for to_local output)
+    pub local_delayed_payment_key: PublicKey,
+}
+
+
 // OUTPUT SORTING STRUCTURES
 // ============================================================================
 
@@ -75,7 +103,6 @@ pub struct HTLCOutput {
     pub cltv_expiry: u32,
 }
 
-// ============================================================================
 // TEST VECTOR STRUCTURES
 // ============================================================================
 
@@ -120,29 +147,4 @@ pub struct Bolt3Htlc {
 pub enum HtlcDirection {
     Offered,
     Received,
-}
-
-// ============================================================================
-// COMMITMENT KEYS STRUCTURE)
-// ============================================================================
-
-/// The set of public keys which are used in the creation of one commitment transaction.
-/// These are derived from the channel base keys and per-commitment point.
-#[derive(Clone, Debug)]
-pub struct CommitmentKeys {
-    /// The per-commitment point used to derive the other keys
-    pub per_commitment_point: PublicKey,
-
-    /// The revocation key which allows the broadcaster's counterparty to punish
-    /// them if they broadcast an old state
-    pub revocation_key: PublicKey,
-
-    /// Local party's HTLC key (derived from local_htlc_basepoint)
-    pub local_htlc_key: PublicKey,
-
-    /// Remote party's HTLC key (derived from remote_htlc_basepoint)
-    pub remote_htlc_key: PublicKey,
-
-    /// Local party's delayed payment key (for to_local output)
-    pub local_delayed_payment_key: PublicKey,
 }
