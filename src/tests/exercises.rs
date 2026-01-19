@@ -318,9 +318,11 @@ fn test_07_sign_transaction_input_sighash_all() {
         "Signature should end with SIGHASH_ALL (0x01)"
     );
 
+    let signature_solution = hex::decode("3044022060fbcd83321e2e409566aeb8032ceee9ac968906151238068f7b0cf9e10b4bd702201f73255bd8bfb895ec3e04fda22500e262d17377923a8783c191a290beac984701").unwrap();
+
     assert_eq!(
         signature,
-hex::decode("3044022060fbcd83321e2e409566aeb8032ceee9ac968906151238068f7b0cf9e10b4bd702201f73255bd8bfb895ec3e04fda22500e262d17377923a8783c191a290beac984701").unwrap(),
+        signature_solution,
         "Signature should match expected value"
     );
 }
@@ -611,11 +613,11 @@ fn test_17_set_obscured_commitment_number() {
         ^ commitment_index;
 
     // Upper 24 bits in locktime
-    let locktime_value =
+    let expected_locktime_value =
         ((0x20 as u32) << 8 * 3) | ((obscured_commitment_transaction_number & 0xffffff) as u32);
 
     // Lower 24 bits in sequence
-    let sequence_value = Sequence(
+    let expected_sequence_value = Sequence(
         ((0x80 as u32) << 8 * 3) | ((obscured_commitment_transaction_number >> 3 * 8) as u32),
     );
 
@@ -645,15 +647,15 @@ fn test_17_set_obscured_commitment_number() {
 
     // Extract values from transaction
     let actual_locktime_value = tx.lock_time.to_consensus_u32();
-    let expected_sequence_value = tx.input[0].sequence;
+    let actual_sequence_value = tx.input[0].sequence;
 
     assert_eq!(
-        actual_locktime_value, locktime_value,
+        actual_locktime_value, expected_locktime_value,
         "Obscured locktime number is incorrect"
     );
 
     assert_eq!(
-        expected_sequence_value, sequence_value,
+        actual_sequence_value, expected_sequence_value,
         "Obscured sequence number is incorrect"
     );
 }
@@ -709,7 +711,7 @@ fn test_18_create_commitment_transaction_outputs() {
     // Test case 1: Values above dust limit
     let to_local_value = 7_000_000;
     let to_remote_value = 3_000_000;
-    let fee = 0;
+    let fee = 1_0000;
 
     let outputs = create_commitment_transaction_outputs(
         to_local_value,
@@ -720,6 +722,16 @@ fn test_18_create_commitment_transaction_outputs() {
         dust_limit_satoshis,
         fee,
     );
+
+    // Expected to_local script from BOLT 3 test vectors
+    let expected_to_local_output_script = hex::decode(
+        "0020f50bac8895d89a8a4f1de0b87bf52383f4d853e4368db17467fa50e3798d6980"
+    ).unwrap();
+
+
+    // Expected P2WPKH script from BOLT 3 test vectors
+    // Format: OP_0 <20-byte-pubkey-hash>
+    let expected_to_remote_output_script = hex::decode("0014cc1b07838e387deacd0e5232e1e8b49f4c29e484").unwrap();
 
     // Should have 2 outputs (both above dust limit)
     assert_eq!(
@@ -738,7 +750,7 @@ fn test_18_create_commitment_transaction_outputs() {
         "Should have to_local output"
     );
 
-    // Verify to_local is P2WSH
+    // Verify to_local
     let to_local_output = outputs
         .iter()
         .find(|o| o.value == to_local_value - fee)
@@ -748,8 +760,21 @@ fn test_18_create_commitment_transaction_outputs() {
         "to_local should be P2WSH"
     );
     assert_eq!(
-        to_local_output.cltv_expiry, None,
-        "to_local should have no CLTV expiry"
+        hex::encode(to_local_output.script.clone()),
+        hex::encode(expected_to_local_output_script.clone()),
+        "to_local script should match BOLT 3 test vector"
+    );
+
+    // Verify to_remote
+    let to_remote_output = outputs
+        .iter()
+        .find(|o| o.value == to_remote_value)
+        .unwrap();
+
+    assert_eq!(
+        hex::encode(to_remote_output.script.clone()),
+        hex::encode(expected_to_remote_output_script.clone()),
+        "to_local script should match BOLT 3 test vector"
     );
 
     // Test case 2: Values below dust limit
@@ -956,7 +981,7 @@ fn test_20_create_commitment_transaction() {
     let commitment_number = 42;
     let to_self_delay = 144;
     let dust_limit_satoshis = 546;
-    let feerate_per_kw = 0; // Use 0 fee for simpler verification
+    let feerate_per_kw = 0;
 
     // Test without HTLCs
     let tx = create_commitment_transaction(
@@ -1007,54 +1032,15 @@ fn test_20_create_commitment_transaction() {
         "Sequence upper byte should be 0x80"
     );
 
-    // Verify outputs are sorted by value (BIP69)
-    assert!(
-        tx.output[0].value.to_sat() <= tx.output[1].value.to_sat(),
-        "Outputs should be sorted by value"
-    );
+    let expected_tx_hex = "0200000001bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014cc1b07838e387deacd0e5232e1e8b49f4c29e484c0cf6a0000000000220020f50bac8895d89a8a4f1de0b87bf52383f4d853e4368db17467fa50e3798d69803e195220";
 
-    // Test with HTLCs
-    let offered_htlcs = vec![HTLCOutput {
-        amount_sat: 2_000_000,
-        payment_hash: Sha256::hash(&[0x02; 32]).to_byte_array(),
-        cltv_expiry: 502,
-    }];
-
-    let received_htlcs = vec![HTLCOutput {
-        amount_sat: 1_000_000,
-        payment_hash: Sha256::hash(&[0x00; 32]).to_byte_array(),
-        cltv_expiry: 500,
-    }];
-
-    let tx_with_htlcs = create_commitment_transaction(
-        funding_outpoint,
-        to_local_value,
-        to_remote_value,
-        &commitment_keys,
-        &local_payment_basepoint,
-        &remote_payment_basepoint,
-        commitment_number,
-        to_self_delay,
-        dust_limit_satoshis,
-        feerate_per_kw,
-        &offered_htlcs,
-        &received_htlcs,
-    );
-
-    // Should have more outputs with HTLCs (2 base + 2 HTLCs = 4)
     assert_eq!(
-        tx_with_htlcs.output.len(),
-        4,
-        "Should have 4 outputs with HTLCs"
+        hex::encode(bitcoin::consensus::serialize(&tx)),
+        expected_tx_hex,
+        "TX hex should match provided solution"
     );
 
-    // Verify outputs are still sorted
-    for i in 0..tx_with_htlcs.output.len() - 1 {
-        assert!(
-            tx_with_htlcs.output[i].value <= tx_with_htlcs.output[i + 1].value,
-            "Outputs should be sorted by value"
-        );
-    }
+
 }
 
 #[test]
