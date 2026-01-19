@@ -64,52 +64,6 @@ pub fn build_complete_commitment_transaction(
     tx
 }
 
-pub fn build_commitment_from_channel_keys(
-    funding_outpoint: OutPoint,
-    local_channel_keys: &ChannelKeyManager,
-    remote_payment_basepoint: &PublicKey,
-    remote_revocation_basepoint: &PublicKey,
-    remote_htlc_basepoint: &PublicKey,
-    local_htlc_basepoint: &PublicKey,
-    to_local_value_msat: u64,
-    to_remote_value_msat: u64,
-    offered_htlcs: &[HTLCOutput],
-    received_htlcs: &[HTLCOutput],
-    commitment_number: u64,
-    to_self_delay: u16,
-    dust_limit_satoshis: u64,
-    feerate_per_kw: u64,
-) -> Transaction {
-    // STEP 1: Derive all commitment keys from basepoints
-    let commitment_keys = local_channel_keys.get_commitment_keys(
-        commitment_number,
-        remote_revocation_basepoint,
-        remote_htlc_basepoint,
-        local_htlc_basepoint,
-    );
-
-    // STEP 2: Build transaction with derived keys
-    let local_payment_basepoint = PublicKey::from_secret_key(
-        &local_channel_keys.secp_ctx,
-        &local_channel_keys.payment_basepoint_secret,
-    );
-
-    build_complete_commitment_transaction(
-        funding_outpoint,
-        &commitment_keys,
-        remote_payment_basepoint,
-        &local_payment_basepoint,
-        to_local_value_msat,
-        to_remote_value_msat,
-        offered_htlcs,
-        received_htlcs,
-        commitment_number,
-        to_self_delay,
-        dust_limit_satoshis,
-        feerate_per_kw,
-    )
-}
-
 
 pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transaction {
     let secp = Secp256k1::new();
@@ -242,9 +196,4 @@ pub fn build_bolt3_commitment_with_htlcs(
         test_vector.local_dust_limit_satoshi,
         test_vector.feerate_per_kw,
     )
-}
-
-pub fn verify_bolt3_txid(tx: &Transaction, expected_txid: &str) -> bool {
-    let actual_txid = tx.compute_txid().to_string();
-    actual_txid == expected_txid
 }
