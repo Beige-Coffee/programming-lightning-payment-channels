@@ -1232,7 +1232,36 @@ fn test_22_create_offered_htlc_script() {
 fn test_23_create_htlc_timeout_transaction() {
     let secp_ctx = Secp256k1::new();
 
-    // BOLT 3 test vector keys
+    // BOLT 3 provides the derived local_privkey directly (remove trailing 01)
+    let local_htlc_privkey = SecretKey::from_slice(
+        &hex::decode("bb13b121cdc357cd2e608b0aea294afca36e2b34cf958e2e6451a2f274694491").unwrap()
+    ).unwrap();
+
+    // Build ChannelKeyManager with the BOLT 3 derived HTLC key
+    let channel_keys = ChannelKeyManager {
+        funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        htlc_basepoint_secret: local_htlc_privkey, // Use the BOLT 3 derived key directly
+        commitment_seed: [0x01; 32], // dummy
+        secp_ctx: secp_ctx.clone(),
+    };
+
+    // BOLT 3 commitment txid (corrected - derived from the commitment tx hex)
+    let commitment_txid = Txid::from_str("2b887d4c1c59cd605144a1e2f971d168437db453f841f2fefb2c164f28ff84ab").unwrap();
+
+    // HTLC #2 is at output index 1 in the commitment transaction
+    let htlc_outpoint = OutPoint {
+        txid: commitment_txid,
+        vout: 1,
+    };
+
+    // BOLT 3 HTLC #2 values
+    let htlc_amount = 2000; // satoshis
+    let cltv_expiry = 502;
+
+    // BOLT 3 keys
     let revocation_pubkey = PublicKey::from_slice(
         &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap()
     ).unwrap();
@@ -1261,21 +1290,11 @@ fn test_23_create_htlc_timeout_transaction() {
         remote_htlc_pubkey,
     );
 
-    // HTLC #2 timeout from BOLT 3 test vectors
-    // Use a placeholder outpoint - we'll verify everything else
-    let htlc_outpoint = OutPoint {
-        txid: Txid::all_zeros(),
-        vout: 1,
-    };
-
-    // BOLT 3 values for HTLC #2
-    let htlc_amount = 2000; // satoshis
-    let cltv_expiry = 502;
+    // Create the unsigned HTLC timeout transaction
     let to_self_delay = 144;
-    let feerate_per_kw = 0; // minimum feerate test case
+    let feerate_per_kw = 0;
 
-    // Create HTLC timeout transaction
-    let htlc_timeout_tx = create_htlc_timeout_transaction(
+    let unsigned_htlc_timeout_tx = create_htlc_timeout_transaction(
         htlc_outpoint,
         htlc_amount,
         cltv_expiry,
@@ -1284,60 +1303,50 @@ fn test_23_create_htlc_timeout_transaction() {
         feerate_per_kw,
     );
 
-    // Verify transaction structure matches BOLT 3
-    assert_eq!(htlc_timeout_tx.version, Version::TWO, "Version should be 2");
-    assert_eq!(htlc_timeout_tx.input.len(), 1, "Should have 1 input");
-    assert_eq!(htlc_timeout_tx.output.len(), 1, "Should have 1 output");
+    // BOLT 3 HTLC #2 offered script (payment_hash = SHA256(0x0202...02))
+    let preimage = [0x02u8; 32];
+    let payment_hash = Sha256::hash(&preimage).to_byte_array();
 
-    // Verify locktime equals CLTV expiry (502 = 0x01f6)
-    assert_eq!(
-        htlc_timeout_tx.lock_time.to_consensus_u32(),
-        cltv_expiry,
-        "Locktime should be CLTV expiry (502)"
-    );
-
-    // Verify sequence is 0
-    assert_eq!(
-        htlc_timeout_tx.input[0].sequence,
-        Sequence::ZERO,
-        "Sequence should be 0"
-    );
-
-    // Verify output amount (2000 sats with 0 fee)
-    assert_eq!(
-        htlc_timeout_tx.output[0].value.to_sat(),
-        htlc_amount,
-        "Output amount should be 2000 sats"
-    );
-
-    // Verify output is P2WSH
-    assert!(
-        htlc_timeout_tx.output[0].script_pubkey.is_p2wsh(),
-        "Output should be P2WSH"
-    );
-
-    // Verify the output script matches BOLT 3 expected P2WSH
-    // The to_local script P2WSH from BOLT 3 test vectors
-    let expected_p2wsh = hex::decode("00204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e").unwrap();
-    assert_eq!(
-        htlc_timeout_tx.output[0].script_pubkey.as_bytes(),
-        expected_p2wsh.as_slice(),
-        "Output P2WSH should match BOLT 3 test vector"
-    );
-
-    // Also verify our to_local script matches BOLT 3
-    let to_local_script = create_to_local_script(
+    let htlc_script = create_offered_htlc_script(
         &revocation_pubkey,
-        &local_delayed_pubkey,
-        to_self_delay,
+        &local_htlc_pubkey,
+        &remote_htlc_pubkey,
+        &payment_hash,
     );
-    let expected_to_local_wscript = hex::decode(
-        "63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac"
+
+    // BOLT 3 remote HTLC signature (with SIGHASH_ALL appended)
+    let remote_htlc_signature = hex::decode(
+        "30440220649fe8b20e67e46cbb0d09b4acea87dbec001b39b08dee7bdd0b1f03922a8640022037c462dff79df501cecfdb12ea7f4de91f99230bb544726f6e04527b1f89600401"
     ).unwrap();
+
+    // BOLT 3 local HTLC signature (with SIGHASH_ALL appended)
+    let local_htlc_signature = hex::decode(
+        "3045022100803159dee7935dba4a1d36a61055ce8fd62caa528573cc221ae288515405a252022029c59e7cffce374fe860100a4a63787e105c3cf5156d40b12dd53ff55ac8cf3f01"
+    ).unwrap();
+
+    // Create witness for HTLC timeout: [0, remote_sig, local_sig, 0 (false), htlc_script]
+    let htlc_timeout_witness = Witness::from_slice(&[
+        &[][..],
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &[][..],
+        htlc_script.as_bytes(),
+    ]);
+
+    // Attach witness to create signed transaction
+    let mut signed_htlc_timeout_tx = unsigned_htlc_timeout_tx;
+    signed_htlc_timeout_tx.input[0].witness = htlc_timeout_witness;
+
+    // BOLT 3 expected HTLC timeout transaction
+    let expected_tx_hex = "02000000000101ab84ff284f162cfbfef241f853b47d4368d171f9e2a1445160cd591c4c7d882b01000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e05004730440220649fe8b20e67e46cbb0d09b4acea87dbec001b39b08dee7bdd0b1f03922a8640022037c462dff79df501cecfdb12ea7f4de91f99230bb544726f6e04527b1f89600401483045022100803159dee7935dba4a1d36a61055ce8fd62caa528573cc221ae288515405a252022029c59e7cffce374fe860100a4a63787e105c3cf5156d40b12dd53ff55ac8cf3f01008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000";
+
+    // Serialize signed transaction and compare
+    let actual_tx_hex = hex::encode(bitcoin::consensus::serialize(&signed_htlc_timeout_tx));
+
     assert_eq!(
-        to_local_script.as_bytes(),
-        expected_to_local_wscript.as_slice(),
-        "to_local script should match BOLT 3 test vector"
+        actual_tx_hex,
+        expected_tx_hex,
+        "Finalized HTLC timeout transaction should match BOLT 3 test vector"
     );
 }
 
@@ -1498,100 +1507,6 @@ fn test_25_create_received_htlc_script() {
 fn test_26_create_htlc_success_transaction() {
     let secp_ctx = Secp256k1::new();
 
-    // BOLT 3 test vector keys
-    let revocation_pubkey = PublicKey::from_slice(
-        &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap()
-    ).unwrap();
-
-    let local_delayed_pubkey = PublicKey::from_slice(
-        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap()
-    ).unwrap();
-
-    let local_htlc_pubkey = PublicKey::from_slice(
-        &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7").unwrap()
-    ).unwrap();
-
-    let remote_htlc_pubkey = PublicKey::from_slice(
-        &hex::decode("0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b").unwrap()
-    ).unwrap();
-
-    let per_commitment_point = PublicKey::from_slice(
-        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap()
-    ).unwrap();
-
-    let commitment_keys = CommitmentKeys::from_keys(
-        per_commitment_point,
-        revocation_pubkey,
-        local_delayed_pubkey,
-        local_htlc_pubkey,
-        remote_htlc_pubkey,
-    );
-
-    // HTLC outpoint (placeholder)
-    let htlc_outpoint = OutPoint {
-        txid: Txid::all_zeros(),
-        vout: 0,
-    };
-
-    // BOLT 3 values for HTLC #0 (received HTLC)
-    let htlc_amount = 1000; // satoshis
-    let to_self_delay = 144;
-    let feerate_per_kw = 0; // minimum feerate test case
-
-    // Create HTLC success transaction
-    let htlc_success_tx = create_htlc_success_transaction(
-        htlc_outpoint,
-        htlc_amount,
-        &commitment_keys,
-        to_self_delay,
-        feerate_per_kw,
-    );
-
-    // Verify transaction structure matches BOLT 3
-    assert_eq!(htlc_success_tx.version, Version::TWO, "Version should be 2");
-    assert_eq!(htlc_success_tx.input.len(), 1, "Should have 1 input");
-    assert_eq!(htlc_success_tx.output.len(), 1, "Should have 1 output");
-
-    // Verify locktime is 0 (unlike HTLC timeout which uses cltv_expiry)
-    assert_eq!(
-        htlc_success_tx.lock_time.to_consensus_u32(),
-        0,
-        "Locktime should be 0 for HTLC success"
-    );
-
-    // Verify sequence is 0
-    assert_eq!(
-        htlc_success_tx.input[0].sequence,
-        Sequence::ZERO,
-        "Sequence should be 0"
-    );
-
-    // Verify output amount (1000 sats with 0 fee)
-    assert_eq!(
-        htlc_success_tx.output[0].value.to_sat(),
-        htlc_amount,
-        "Output amount should be 1000 sats"
-    );
-
-    // Verify output is P2WSH
-    assert!(
-        htlc_success_tx.output[0].script_pubkey.is_p2wsh(),
-        "Output should be P2WSH"
-    );
-
-    // Verify the output script matches BOLT 3 expected P2WSH
-    let expected_p2wsh = hex::decode("00204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e").unwrap();
-    assert_eq!(
-        htlc_success_tx.output[0].script_pubkey.as_bytes(),
-        expected_p2wsh.as_slice(),
-        "Output P2WSH should match BOLT 3 test vector"
-    );
-}
-
-#[test]
-fn test_27_finalize_htlc_success() {
-    let secp_ctx = Secp256k1::new();
-
     // BOLT 3 provides the derived local_privkey directly (remove trailing 01)
     let local_htlc_privkey = SecretKey::from_slice(
         &hex::decode("bb13b121cdc357cd2e608b0aea294afca36e2b34cf958e2e6451a2f274694491").unwrap()
@@ -1618,7 +1533,7 @@ fn test_27_finalize_htlc_success() {
     };
 
     // BOLT 3 HTLC #0 values (received HTLC)
-    let htlc_amount = 1000; // satoshis
+    let htlc_amount = 1000; 
     let cltv_expiry = 500;
 
     // BOLT 3 keys
@@ -1674,14 +1589,127 @@ fn test_27_finalize_htlc_success() {
         cltv_expiry,
     );
 
-    // Verify HTLC script matches BOLT 3
-    let expected_htlc_script = hex::decode(
-        "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac6868"
+
+    // BOLT 3 remote HTLC signature (with SIGHASH_ALL appended)
+    let remote_htlc_signature = hex::decode(
+        "3045022100d9e29616b8f3959f1d3d7f7ce893ffedcdc407717d0de8e37d808c91d3a7c50d022078c3033f6d00095c8720a4bc943c1b45727818c082e4e3ddbc6d3116435b624b01"
     ).unwrap();
-    assert_eq!(
+
+    // BOLT 3 local HTLC signature (with SIGHASH_ALL appended)
+    let local_htlc_signature = hex::decode(
+        "30440220636de5682ef0c5b61f124ec74e8aa2461a69777521d6998295dcea36bc3338110220165285594b23c50b28b82df200234566628a27bcd17f7f14404bd865354eb3ce01"
+    ).unwrap();
+
+    // Create witness for HTLC success: [0, remote_sig, local_sig, payment_preimage, htlc_script]
+    let htlc_success_witness = Witness::from_slice(&[
+        &[][..],
+        &remote_htlc_signature[..],
+        &local_htlc_signature[..],
+        &payment_preimage[..],
         htlc_script.as_bytes(),
-        expected_htlc_script.as_slice(),
-        "HTLC script should match BOLT 3"
+    ]);
+
+    // Attach witness to create signed transaction
+    let mut signed_htlc_success_tx = unsigned_htlc_success_tx;
+    signed_htlc_success_tx.input[0].witness = htlc_success_witness;
+
+    // BOLT 3 expected HTLC success transaction
+    let expected_tx_hex = "02000000000101ab84ff284f162cfbfef241f853b47d4368d171f9e2a1445160cd591c4c7d882b00000000000000000001e8030000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d9e29616b8f3959f1d3d7f7ce893ffedcdc407717d0de8e37d808c91d3a7c50d022078c3033f6d00095c8720a4bc943c1b45727818c082e4e3ddbc6d3116435b624b014730440220636de5682ef0c5b61f124ec74e8aa2461a69777521d6998295dcea36bc3338110220165285594b23c50b28b82df200234566628a27bcd17f7f14404bd865354eb3ce012000000000000000000000000000000000000000000000000000000000000000008a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac686800000000";
+
+    // Serialize signed transaction and compare
+    let actual_tx_hex = hex::encode(bitcoin::consensus::serialize(&signed_htlc_success_tx));
+
+    assert_eq!(
+        actual_tx_hex,
+        expected_tx_hex,
+        "Finalized HTLC success transaction should match BOLT 3 test vector"
+    );
+}
+
+#[test]
+fn test_27_finalize_htlc_success() {
+    let secp_ctx = Secp256k1::new();
+
+    // BOLT 3 provides the derived local_privkey directly (remove trailing 01)
+    let local_htlc_privkey = SecretKey::from_slice(
+        &hex::decode("bb13b121cdc357cd2e608b0aea294afca36e2b34cf958e2e6451a2f274694491").unwrap()
+    ).unwrap();
+
+    // Build ChannelKeyManager with the BOLT 3 derived HTLC key
+    let channel_keys = ChannelKeyManager {
+        funding_key: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        revocation_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        delayed_payment_basepoint_secret: SecretKey::from_slice(&[0x01; 32]).unwrap(), // dummy
+        htlc_basepoint_secret: local_htlc_privkey,
+        commitment_seed: [0x01; 32], // dummy
+        secp_ctx: secp_ctx.clone(),
+    };
+
+    // BOLT 3 commitment txid
+    let commitment_txid = Txid::from_str("2b887d4c1c59cd605144a1e2f971d168437db453f841f2fefb2c164f28ff84ab").unwrap();
+
+    // HTLC #0 is at output index 0 in the commitment transaction
+    let htlc_outpoint = OutPoint {
+        txid: commitment_txid,
+        vout: 0,
+    };
+
+    // BOLT 3 HTLC #0 values (received HTLC)
+    let htlc_amount = 1000;
+    let cltv_expiry = 500;
+
+    // BOLT 3 keys
+    let revocation_pubkey = PublicKey::from_slice(
+        &hex::decode("0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19").unwrap()
+    ).unwrap();
+
+    let local_delayed_pubkey = PublicKey::from_slice(
+        &hex::decode("03fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c").unwrap()
+    ).unwrap();
+
+    let local_htlc_pubkey = PublicKey::from_slice(
+        &hex::decode("030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e7").unwrap()
+    ).unwrap();
+
+    let remote_htlc_pubkey = PublicKey::from_slice(
+        &hex::decode("0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b").unwrap()
+    ).unwrap();
+
+    let per_commitment_point = PublicKey::from_slice(
+        &hex::decode("025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486").unwrap()
+    ).unwrap();
+
+    let commitment_keys = CommitmentKeys::from_keys(
+        per_commitment_point,
+        revocation_pubkey,
+        local_delayed_pubkey,
+        local_htlc_pubkey,
+        remote_htlc_pubkey,
+    );
+
+    // Create the unsigned HTLC success transaction
+    let to_self_delay = 144;
+    let feerate_per_kw = 0;
+
+    let unsigned_htlc_success_tx = create_htlc_success_transaction(
+        htlc_outpoint,
+        htlc_amount,
+        &commitment_keys,
+        to_self_delay,
+        feerate_per_kw,
+    );
+
+    // BOLT 3 HTLC #0 received script (preimage = 0x0000...00, cltv_expiry = 500)
+    let payment_preimage = [0x00u8; 32];
+    let payment_hash = Sha256::hash(&payment_preimage).to_byte_array();
+
+    let htlc_script = create_received_htlc_script(
+        &revocation_pubkey,
+        &local_htlc_pubkey,
+        &remote_htlc_pubkey,
+        &payment_hash,
+        cltv_expiry,
     );
 
     // BOLT 3 remote HTLC signature (with SIGHASH_ALL appended)
@@ -1786,13 +1814,13 @@ fn test_28_create_htlc_outputs() {
     // Should have 5 outputs total (2 offered + 3 received)
     assert_eq!(outputs.len(), 5, "Should have 5 HTLC outputs");
 
-    // Verify offered HTLCs (first 2 outputs, no cltv_expiry set)
+    // Verify offered HTLCs (first 2 outputs, with cltv_expiry for sorting)
     assert_eq!(outputs[0].value, 2000, "First offered HTLC should be 2000 sats");
-    assert_eq!(outputs[0].cltv_expiry, None, "Offered HTLC should have no cltv_expiry");
+    assert_eq!(outputs[0].cltv_expiry, Some(502), "Offered HTLC #2 should have cltv_expiry 502");
     assert!(outputs[0].script.is_p2wsh(), "Output should be P2WSH");
 
     assert_eq!(outputs[1].value, 3000, "Second offered HTLC should be 3000 sats");
-    assert_eq!(outputs[1].cltv_expiry, None, "Offered HTLC should have no cltv_expiry");
+    assert_eq!(outputs[1].cltv_expiry, Some(503), "Offered HTLC #3 should have cltv_expiry 503");
 
     // Verify received HTLCs (next 3 outputs, with cltv_expiry set)
     assert_eq!(outputs[2].value, 1000, "First received HTLC should be 1000 sats");
@@ -1849,10 +1877,10 @@ fn test_28_create_htlc_outputs() {
 
 
 #[test]
-fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
+fn test_29_create_commitment_transaction_with_htlcs() {
     let secp_ctx = Secp256k1::new();
 
-    // BOLT 3 local funding private key (remove trailing 01)
+    // BOLT 3 local funding private key (remove trailing sighash all 01)
     let local_funding_privkey = SecretKey::from_slice(
         &hex::decode("30ff4956bbdd3222d44cc5e8a1261dab1e07957bdac5ae88fe3261ef321f3749").unwrap()
     ).unwrap();
@@ -1973,7 +2001,7 @@ fn test_29_create_and_sign_commitment_transaction_with_htlcs() {
 
     // BOLT 3 funding script
     let funding_script = ScriptBuf::from_hex("5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae").unwrap();
-    let funding_amount = 10_000_000u64;
+    let funding_amount = 10_000_000;
 
     // BOLT 3 remote signature (with SIGHASH_ALL appended)
     let remote_sig = hex::decode(

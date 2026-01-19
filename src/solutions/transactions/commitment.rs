@@ -127,7 +127,7 @@ pub fn create_htlc_outputs(
         outputs.push(OutputWithMetadata {
             value: htlc.amount_sat,
             script: script.to_p2wsh(),
-            cltv_expiry: None,
+            cltv_expiry: Some(htlc.cltv_expiry),
         });
     }
 
