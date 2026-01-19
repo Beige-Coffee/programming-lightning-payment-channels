@@ -88,7 +88,7 @@ pub fn finalize_htlc_timeout(
 
     // Attach witness to transaction
     let mut signed_tx = tx;
-    signed_tx.input[0].witness = witness;
+    signed_tx.input[input_index].witness = witness;
 
     // Return Transaction
     signed_tx
@@ -169,7 +169,7 @@ pub fn finalize_htlc_success(
 
     // Attach witness to transaction
     let mut signed_tx = tx;
-    signed_tx.input[0].witness = witness;
+    signed_tx.input[input_index].witness = witness;
 
     // Return Transaction
     signed_tx

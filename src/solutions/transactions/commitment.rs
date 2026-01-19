@@ -282,7 +282,7 @@ pub fn finalize_holder_commitment(
 
     // Attach witness to transaction
     let mut signed_tx = tx;
-    signed_tx.input[0].witness = witness;
+    signed_tx.input[input_index].witness = witness;
 
     // Return Transaction
     signed_tx
