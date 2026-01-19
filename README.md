@@ -35,7 +35,7 @@ You have two options for completing this course:
 
 The course is optimized for Replit, where each Repl comes with Bitcoin Core running in the background. This allows you to easily generate Lightning transactions, broadcast them, and decode raw transactions as you complete exercises.
 
-**[Launch on Replit →](replit.com/@austin-f/Programming-Lightning-Intro-to-Payment-Channels)**
+**[Launch on Replit →](https://replit.com/@austin-f/Programming-Lightning-Intro-to-Payment-Channels)**
 
 ### Option 2: Run Locally
 
