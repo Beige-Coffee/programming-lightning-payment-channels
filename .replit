@@ -1,4 +1,4 @@
-run = "cargo test -- --test-threads=1"
+run = "cargo test -j 1"
 
 hidden = [
   "target",
@@ -59,7 +59,7 @@ externalPort = 3000
 
 [deployment]
 deploymentTarget = "cloudrun"
-run = ["sh", "-c", "cargo test"]
+run = ["sh", "-c", "cargo test -j 1"]
 
 [agent]
 expertMode = true
@@ -85,4 +85,4 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cargo test -- --test-threads=1"
+args = "cargo test -j 1"
