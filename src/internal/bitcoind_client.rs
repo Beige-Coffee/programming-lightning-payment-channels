@@ -13,7 +13,6 @@ use std::sync::Arc;
 use bitcoin::consensus::{encode};
 use crate::internal::convert::{
     ListUnspentResponse, SignedTx};
-use lightning::chain::chaininterface::{BroadcasterInterface};
 
 #[derive(Clone)]
 pub struct BitcoindClient {
