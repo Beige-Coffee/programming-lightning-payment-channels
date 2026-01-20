@@ -15,9 +15,7 @@ use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 use bitcoin::transaction::Version;
 use bitcoin::Network;
 use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
-use std::time::Duration;
-
-pub async fn run(commitment_txid: String) {
+pub fn run(commitment_txid: String) {
     // Parse the argument as txid
     let txid = commitment_txid;
 

@@ -14,12 +14,11 @@ use crate::internal::bitcoind_client::{BitcoindClient, get_bitcoind_client};
 use crate::scripts::funding::create_funding_script;
 use crate::keys::derivation::new_keys_manager;
 use crate::transactions::funding::create_funding_transaction;
-use std::time::Duration;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
 use bitcoin::PublicKey as BitcoinPublicKey;
 
-pub async fn build_simple_htlc_tx(
+pub fn build_simple_htlc_tx(
     bitcoind: BitcoindClient,
     tx_input: TxIn,
     htlc_amount_sat: u64,
@@ -98,8 +97,7 @@ pub async fn build_simple_htlc_tx(
 
 /// Interactive CLI function to create a Funding Transaction
 /// This fetches a UTXO automatically and creates the Funding Transaction
-pub async fn run() {
-
+pub fn run() {
     // Connect to bitcoind
     let bitcoind = get_bitcoind_client();
 
@@ -109,9 +107,6 @@ pub async fn run() {
     let htlc_amount_sat = 405_000;
 
     build_simple_htlc_tx(bitcoind, tx_input, htlc_amount_sat);
-
-    // Add a delay to allow the spawned task to complete
-    std::thread::sleep(Duration::from_secs(2));
 }
 
 

@@ -17,14 +17,13 @@ use bitcoin::sighash::SighashCache;
 use bitcoin::secp256k1;
 use crate::transactions::funding::create_funding_transaction;
 use bitcoin::sighash::EcdsaSighashType;
-use std::time::Duration;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
 use bitcoin::PublicKey as BitcoinPublicKey;
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::secp256k1::Message;
 
-pub async fn build_simple_htlc_spend_tx(
+pub fn build_simple_htlc_spend_tx(
     bitcoind: BitcoindClient,
     txid: String,
     htlc_amount_sat: u64,
@@ -135,17 +134,13 @@ pub async fn build_simple_htlc_spend_tx(
 
 /// Interactive CLI function to create a Funding Transaction
 /// This fetches a UTXO automatically and creates the Funding Transaction
-pub async fn run(simple_htlc_txid: String) {
-
+pub fn run(simple_htlc_txid: String) {
     // Connect to bitcoind
     let bitcoind = get_bitcoind_client();
 
     let htlc_amount_sat = 405_000;
 
     build_simple_htlc_spend_tx(bitcoind, simple_htlc_txid.clone(), htlc_amount_sat);
-
-    // Add a delay to allow the spawned task to complete
-    std::thread::sleep(Duration::from_secs(2));
 }
 
 
