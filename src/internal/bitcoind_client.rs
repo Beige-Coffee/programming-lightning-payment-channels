@@ -1,70 +1,82 @@
 #![allow(dead_code, unused_imports, unused_variables, unknown_lints, unused_must_use)]
-use bitcoin::hash_types::{BlockHash};
-use bitcoin::{Network };
-use lightning_block_sync::http::HttpEndpoint;
-use lightning_block_sync::rpc::RpcClient;
-use bitcoin::secp256k1::PublicKey as Secp256k1PublicKey;
-use bitcoin::address::Address;
-use lightning_block_sync::{AsyncBlockSourceResult, BlockData, BlockHeaderData, BlockSource};
+use bitcoin::{Network};
 use serde_json;
-use std::str::FromStr;
-use bitcoin::blockdata::transaction::Transaction;
-use std::sync::Arc;
-use bitcoin::consensus::{encode};
-use crate::internal::convert::{
-    ListUnspentResponse, SignedTx};
+use crate::internal::convert::{ListUnspentResponse, SignedTx};
 
 #[derive(Clone)]
 pub struct BitcoindClient {
-    pub bitcoind_rpc_client: Arc<RpcClient>,
-    pub handle: tokio::runtime::Handle,
+    client: reqwest::Client,
+    url: String,
+    auth: String,
 }
 
 impl BitcoindClient {
     pub async fn new(
-        host: String, port: u16, rpc_user: String, rpc_password: String, network: Network,
+        host: String,
+        port: u16,
+        rpc_user: String,
+        rpc_password: String,
+        _network: Network,
     ) -> std::io::Result<Self> {
-        let http_endpoint = HttpEndpoint::for_host(host.clone()).with_port(port);
-        let rpc_credentials =
-            base64::encode(format!("{}:{}", rpc_user.clone(), rpc_password.clone()));
-        let bitcoind_rpc_client = RpcClient::new(&rpc_credentials, http_endpoint)?;
+        let auth = base64::encode(format!("{}:{}", rpc_user, rpc_password));
 
-        let client =Self {
-            bitcoind_rpc_client: Arc::new(bitcoind_rpc_client),
-            handle: tokio::runtime::Handle::current(),
-        };
+        Ok(Self {
+            client: reqwest::Client::new(),
+            url: format!("http://{}:{}", host, port),
+            auth,
+        })
+    }
 
-        Ok(client)
+    async fn call_method<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: &Vec<serde_json::Value>,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        let response = self
+            .client
+            .post(&self.url)
+            .header("Authorization", format!("Basic {}", self.auth))
+            .json(&serde_json::json!({
+                "jsonrpc": "1.0",
+                "id": "curios",
+                "method": method,
+                "params": params
+            }))
+            .send()
+            .await?
+            .json::<serde_json::Value>()
+            .await?;
+
+        let result = response["result"].clone();
+        Ok(serde_json::from_value(result)?)
     }
 
     pub async fn list_unspent(&self) -> ListUnspentResponse {
-        self.bitcoind_rpc_client
-            .call_method::<ListUnspentResponse>("listunspent", &vec![])
+        self.call_method::<ListUnspentResponse>("listunspent", &vec![])
             .await
             .unwrap()
     }
 
     pub async fn sign_raw_transaction_with_wallet(&self, tx_hex: String) -> SignedTx {
         let tx_hex_json = serde_json::json!(tx_hex);
-        let signed_tx: SignedTx = self.bitcoind_rpc_client
+        let signed_tx: SignedTx = self
             .call_method("signrawtransactionwithwallet", &vec![tx_hex_json])
             .await
             .unwrap();
-        //println!("Signed Tx: {}", &signed_tx.hex);
         signed_tx
     }
 }
 
 pub async fn get_bitcoind_client() -> BitcoindClient {
-  let bitcoind = BitcoindClient::new(
-      "0.0.0.0".to_string(),
-      18443,
-      "bitcoind".to_string(),
-      "bitcoind".to_string(),
-      Network::Regtest,
-  )
-  .await
-  .unwrap();
+    let bitcoind = BitcoindClient::new(
+        "0.0.0.0".to_string(),
+        18443,
+        "bitcoind".to_string(),
+        "bitcoind".to_string(),
+        Network::Regtest,
+    )
+    .await
+    .unwrap();
 
-  bitcoind
+    bitcoind
 }

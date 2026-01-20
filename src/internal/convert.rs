@@ -1,58 +1,53 @@
 #![allow(dead_code, unused_imports, unused_variables, unused_must_use)]
 use bitcoin::{Address, BlockHash, Txid};
-use lightning_block_sync::http::JsonResponse;
-use std::convert::TryInto;
 use std::str::FromStr;
 use bitcoin::secp256k1::PublicKey;
-use serde_json::Value;
+use serde::{Deserialize, Deserializer};
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct SignedTx {
   pub complete: bool,
   pub hex: String,
 }
 
-
-impl TryInto<SignedTx> for JsonResponse {
-  type Error = std::io::Error;
-  fn try_into(self) -> std::io::Result<SignedTx> {
-    Ok(SignedTx {
-      hex: self.0["hex"].as_str().unwrap().to_string(),
-      complete: self.0["complete"].as_bool().unwrap(),
-    })
-  }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct ListUnspentResponse(pub Vec<ListUnspentUtxo>);
 
-impl TryInto<ListUnspentResponse> for JsonResponse {
-  type Error = std::io::Error;
-  fn try_into(self) -> Result<ListUnspentResponse, Self::Error> {
-    let utxos = self
-      .0
-      .as_array()
-      .unwrap()
-      .iter()
-      .map(|utxo| ListUnspentUtxo {
-        txid: Txid::from_str(&utxo["txid"].as_str().unwrap().to_string()).unwrap(),
-        vout: utxo["vout"].as_u64().unwrap() as u32,
-        amount: bitcoin::Amount::from_btc(utxo["amount"].as_f64().unwrap())
-          .unwrap()
-          .to_sat(),
-        address: Address::from_str(&utxo["address"].as_str().unwrap().to_string())
-          .unwrap()
-          .assume_checked(), // the expected network is not known at this point
-      })
-      .collect();
-    Ok(ListUnspentResponse(utxos))
-  }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListUnspentUtxo {
+  #[serde(deserialize_with = "deserialize_txid")]
   pub txid: Txid,
   pub vout: u32,
+  #[serde(deserialize_with = "deserialize_amount")]
   pub amount: u64,
+  #[serde(deserialize_with = "deserialize_address")]
   pub address: Address,
+}
+
+fn deserialize_txid<'de, D>(deserializer: D) -> Result<Txid, D::Error>
+where
+  D: Deserializer<'de>,
+{
+  let s = String::deserialize(deserializer)?;
+  Txid::from_str(&s).map_err(serde::de::Error::custom)
+}
+
+fn deserialize_amount<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+  D: Deserializer<'de>,
+{
+  let btc_amount = f64::deserialize(deserializer)?;
+  bitcoin::Amount::from_btc(btc_amount)
+    .map(|amt| amt.to_sat())
+    .map_err(serde::de::Error::custom)
+}
+
+fn deserialize_address<'de, D>(deserializer: D) -> Result<Address, D::Error>
+where
+  D: Deserializer<'de>,
+{
+  let s = String::deserialize(deserializer)?;
+  Address::from_str(&s)
+    .map(|addr| addr.assume_checked())
+    .map_err(serde::de::Error::custom)
 }
