@@ -15,7 +15,6 @@ use bitcoin::transaction::Version;
 use bitcoin::Network;
 use bitcoin::{Amount, OutPoint, Sequence, Transaction, TxIn, TxOut, Witness};
 use std::time::Duration;
-use tokio::time::sleep;
 use bitcoin::PublicKey as BitcoinPublicKey;
 
 pub async fn run(funding_txid: String) {
@@ -23,7 +22,7 @@ pub async fn run(funding_txid: String) {
     let txid = funding_txid;
 
     // get bitcoin client
-    let bitcoind = get_bitcoind_client().await;
+    let bitcoind = get_bitcoind_client();
 
     let our_seed = [0x01; 32];
     let remote_seed = [0x02; 32];

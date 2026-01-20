@@ -39,8 +39,8 @@ pub fn get_outpoint(input_tx_id_str: String, vout: usize) -> OutPoint {
         }
 }
 
-pub async fn get_unspent_output(bitcoind: BitcoindClient) -> TxIn {
-    let utxos = bitcoind.list_unspent().await;
+pub fn get_unspent_output(bitcoind: BitcoindClient) -> TxIn {
+    let utxos = bitcoind.list_unspent();
     let utxo = utxos
         .0
         .iter()
@@ -60,13 +60,13 @@ pub async fn get_unspent_output(bitcoind: BitcoindClient) -> TxIn {
     tx_input
 }
 
-pub async fn sign_raw_transaction(bitcoind: BitcoindClient, tx: Transaction) -> Transaction {
+pub fn sign_raw_transaction(bitcoind: BitcoindClient, tx: Transaction) -> Transaction {
     // we need to serialize the tx before passing it into
     //    `sign_raw_transaction_with_wallet`
     let tx_hex = serialize_hex(&tx);
 
     // sign the transaction
-    let signed_tx = bitcoind.sign_raw_transaction_with_wallet(tx_hex).await;
+    let signed_tx = bitcoind.sign_raw_transaction_with_wallet(tx_hex);
 
     // convert signed transaction hex into a Transaction type
     let final_tx: Transaction =

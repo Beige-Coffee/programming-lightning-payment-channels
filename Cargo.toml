@@ -11,10 +11,9 @@ use-solutions = []
 bitcoin = "0.32"
 rand = "0.8"
 serde_json = "1.0"
-tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
 base64 = "0.13.0"
 serde = { version = "1.0", features = ["derive"] }
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+ureq = { version = "2.10", default-features = false, features = ["json"] }
 hex = "0.4.3"
 sha2 = "0.10.8"
 clap = { version = "4.4", features = ["derive"] }

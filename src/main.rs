@@ -132,28 +132,27 @@ enum Commands {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
-    
+
     match &cli.command {
         Commands::Funding => {
-            interactive::funding::run().await;
+            interactive::funding::run();
         },
         Commands::Commitment { funding_txid } => {
-            interactive::commitment::run(funding_txid.clone()).await;
+            interactive::commitment::run(funding_txid.clone());
         },
         Commands::Htlc { funding_txid } => {
-            interactive::htlc::run(funding_txid.clone()).await;
+            interactive::htlc::run(funding_txid.clone());
         },
         Commands::HtlcTimeout { commitment_txid } => {
-            interactive::htlc_timeout::run(commitment_txid.clone()).await;
+            interactive::htlc_timeout::run(commitment_txid.clone());
         },
         Commands::SimpleHtlc => {
-            interactive::simple_htlc::run().await;
+            interactive::simple_htlc::run();
         },
         Commands::SimpleHtlcClaim { simple_htlc_txid } => {
-            interactive::simple_htlc_claim::run(simple_htlc_txid.clone()).await;
+            interactive::simple_htlc_claim::run(simple_htlc_txid.clone());
         },
         Commands::Sha256 { input_string } => {
             let mut hasher = Sha256::new();

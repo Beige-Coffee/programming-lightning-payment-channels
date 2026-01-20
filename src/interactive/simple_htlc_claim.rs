@@ -18,7 +18,6 @@ use bitcoin::secp256k1;
 use crate::transactions::funding::create_funding_transaction;
 use bitcoin::sighash::EcdsaSighashType;
 use std::time::Duration;
-use tokio::time::sleep;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
 use bitcoin::PublicKey as BitcoinPublicKey;
@@ -139,14 +138,14 @@ pub async fn build_simple_htlc_spend_tx(
 pub async fn run(simple_htlc_txid: String) {
 
     // Connect to bitcoind
-    let bitcoind = get_bitcoind_client().await;
+    let bitcoind = get_bitcoind_client();
 
     let htlc_amount_sat = 405_000;
 
-    build_simple_htlc_spend_tx(bitcoind, simple_htlc_txid.clone(), htlc_amount_sat).await;
+    build_simple_htlc_spend_tx(bitcoind, simple_htlc_txid.clone(), htlc_amount_sat);
 
     // Add a delay to allow the spawned task to complete
-    sleep(Duration::from_secs(2)).await;
+    std::thread::sleep(Duration::from_secs(2));
 }
 
 

@@ -10,7 +10,6 @@ use crate::scripts::funding::create_funding_script;
 use crate::keys::derivation::new_keys_manager;
 use crate::transactions::funding::create_funding_transaction;
 use std::time::Duration;
-use tokio::time::sleep;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
 use bitcoin::PublicKey as BitcoinPublicKey;
@@ -47,7 +46,7 @@ pub async fn build_funding_tx(
         &remote_funding_pubkey,
     );
     
-    let signed_tx = sign_raw_transaction(bitcoind.clone(), tx).await;
+    let signed_tx = sign_raw_transaction(bitcoind.clone(), tx);
     
     println!("\n✅ Funding Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
@@ -60,15 +59,15 @@ pub async fn build_funding_tx(
 pub async fn run() {
     
     // Connect to bitcoind
-    let bitcoind = get_bitcoind_client().await;
+    let bitcoind = get_bitcoind_client();
     
     // get an unspent output for Funding Transaction
-    let tx_input = get_unspent_output(bitcoind.clone()).await;
+    let tx_input = get_unspent_output(bitcoind.clone());
 
     let tx_in_amount = 5_000_000;
     
-    build_funding_tx(bitcoind, tx_input, tx_in_amount).await;
+    build_funding_tx(bitcoind, tx_input, tx_in_amount);
 
     // Add a delay to allow the spawned task to complete
-    sleep(Duration::from_secs(2)).await;
+    std::thread::sleep(Duration::from_secs(2));
 }

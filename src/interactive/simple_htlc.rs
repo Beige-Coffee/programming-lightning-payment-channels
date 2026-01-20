@@ -15,7 +15,6 @@ use crate::scripts::funding::create_funding_script;
 use crate::keys::derivation::new_keys_manager;
 use crate::transactions::funding::create_funding_transaction;
 use std::time::Duration;
-use tokio::time::sleep;
 use bitcoin::Network;
 use crate::types::{KeyFamily};
 use bitcoin::PublicKey as BitcoinPublicKey;
@@ -89,7 +88,7 @@ pub async fn build_simple_htlc_tx(
         output: vec![output],
     };
 
-    let signed_tx = sign_raw_transaction(bitcoind.clone(), tx).await;
+    let signed_tx = sign_raw_transaction(bitcoind.clone(), tx);
 
     println!("\n✅ Simple HTLC Transaction Created\n");
     println!("Tx ID: {}", signed_tx.compute_txid());
@@ -102,17 +101,17 @@ pub async fn build_simple_htlc_tx(
 pub async fn run() {
 
     // Connect to bitcoind
-    let bitcoind = get_bitcoind_client().await;
+    let bitcoind = get_bitcoind_client();
 
     // get an unspent output for Funding Transaction
-    let tx_input = get_unspent_output(bitcoind.clone()).await;
+    let tx_input = get_unspent_output(bitcoind.clone());
 
     let htlc_amount_sat = 405_000;
 
-    build_simple_htlc_tx(bitcoind, tx_input, htlc_amount_sat).await;
+    build_simple_htlc_tx(bitcoind, tx_input, htlc_amount_sat);
 
     // Add a delay to allow the spawned task to complete
-    sleep(Duration::from_secs(2)).await;
+    std::thread::sleep(Duration::from_secs(2));
 }
 
 
