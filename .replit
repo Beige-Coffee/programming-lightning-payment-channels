@@ -85,4 +85,4 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cargo test -j 1"
+args = "RUSTUP_TOOLCHAIN=none bash start.sh && cargo test -j 1"

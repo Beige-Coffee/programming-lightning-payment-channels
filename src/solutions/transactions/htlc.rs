@@ -63,10 +63,8 @@ pub fn finalize_htlc_timeout(
     htlc_script: &ScriptBuf,
     htlc_amount: u64,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_privkey: SecretKey,
 ) -> Transaction {
-
-    // Get the local HTLC private key
-    let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     // Sign the transaction input with the local HTLC private key
     let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(
@@ -143,11 +141,9 @@ pub fn finalize_htlc_success(
     htlc_script: &ScriptBuf,
     htlc_amount: u64,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_privkey: SecretKey,
     payment_preimage: [u8; 32],
 ) -> Transaction {
-
-    // Get the local HTLC private key
-    let local_htlc_privkey = keys_manager.htlc_basepoint_secret;
 
     // Sign the transaction input with the local HTLC private key
     let local_htlc_signature = keys_manager.sign_transaction_input_sighash_all(

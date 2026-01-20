@@ -75,7 +75,8 @@ pub fn run(commitment_txid: String) {
     let txid_index = 1;
     let htlc_outpoint = get_outpoint(txid.to_string(), txid_index);
 
-    let htlc_amount = 404_000;
+    let htlc_input_amount = 405_000;
+    let htlc_timeout_amount = 404_000;
     let cltv_expiry = 200;
     let to_self_delay = 144;
     let feerate_per_kw = 1117;
@@ -92,7 +93,7 @@ pub fn run(commitment_txid: String) {
     // Step 1: Create the unsigned HTLC timeout transaction
     let tx = create_htlc_timeout_transaction(
         htlc_outpoint,
-        htlc_amount,
+        htlc_timeout_amount,
         cltv_expiry,
         &commitment_keys,
         to_self_delay,
@@ -110,7 +111,7 @@ pub fn run(commitment_txid: String) {
         &tx,
         input_index,
         &htlc_script,
-        htlc_amount,
+        htlc_input_amount,
         &remote_htlc_secret,
     );
 
@@ -119,8 +120,9 @@ pub fn run(commitment_txid: String) {
         tx,
         input_index,
         &htlc_script,
-        htlc_amount,
-        remote_htlc_signature);
+        htlc_input_amount,
+        remote_htlc_signature,
+        local_htlc_secret);
 
 
     println!("\n✅ HTLC Timeout Transaction Created\n");

@@ -45,13 +45,12 @@ pub fn finalize_htlc_timeout(
     htlc_script: &ScriptBuf,
     htlc_amount: u64,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_privkey: SecretKey,
 ) -> Transaction {
 
     unimplemented!();
 
-    // Get the local HTLC private key
-
-    // Sign the transaction input with the local HTLC private key
+    // Sign the transaction input with the local HTLC private key (already derived)
 
     // Build witness: [0, remote_sig, local_sig, 0 (false for timeout), script]
 
@@ -93,14 +92,13 @@ pub fn finalize_htlc_success(
     htlc_script: &ScriptBuf,
     htlc_amount: u64,
     remote_htlc_signature: Vec<u8>,
+    local_htlc_privkey: SecretKey,
     payment_preimage: [u8; 32],
 ) -> Transaction {
 
     unimplemented!();
 
-    // Get the local HTLC private key
-
-    // Sign the transaction input with the local HTLC private key
+    // Sign the transaction input with the local HTLC private key (already derived)
 
     // Build witness: [0, remote_sig, local_sig, preimage, script]
 
