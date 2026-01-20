@@ -36,9 +36,6 @@ requiredFiles = [".replit", "replit.nix"]
 [languages.rust]
 pattern = "**/*.rs"
 
-[languages.rust.languageServer]
-start = "rust-analyzer"
-
 [[ports]]
 localPort = 8332
 externalPort = 3002
