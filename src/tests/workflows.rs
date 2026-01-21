@@ -44,7 +44,6 @@ pub fn build_complete_commitment_transaction(
         .cloned()
         .collect();
 
-
     // create commitment transaction using exercise students completed
     let tx = create_commitment_transaction(
         funding_outpoint,
@@ -84,7 +83,7 @@ pub fn build_bolt3_simple_commitment(test_vector: &Bolt3TestVector) -> Transacti
         vout: test_vector.funding_output_index,
     };
 
-    // Use exact keys from test vector (testing path)
+    // OPTION 2: Use exact keys from test vector (testing path)
     // For BOLT 3 test vectors, we use exact keys they provide
     let per_commitment_point =
         channel_keys.derive_per_commitment_point(test_vector.commitment_number);

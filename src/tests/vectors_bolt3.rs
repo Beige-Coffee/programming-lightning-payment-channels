@@ -8,6 +8,9 @@ use bitcoin::secp256k1::{PublicKey, Secp256k1, SecretKey};
 use bitcoin::{OutPoint, Transaction, Witness};
 use hex;
 
+use crate::tests::workflows::build_bolt3_simple_commitment;
+use crate::tests::workflows::build_bolt3_commitment_with_htlcs;
+
 
 // These helper functions are used only in tests to construct witnesses
 // for verifying student implementations of finalize_htlc_success and

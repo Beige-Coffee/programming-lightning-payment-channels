@@ -49,13 +49,6 @@ pub mod transactions;
 #[path = "solutions/transactions/mod.rs"]
 pub mod transactions;
 
-#[cfg(not(feature = "use-solutions"))]
-#[path = "exercises/workflows.rs"]
-pub mod workflows;
-
-#[cfg(feature = "use-solutions")]
-#[path = "solutions/workflows.rs"]
-pub mod workflows;
 
 // Internal utilities
 pub mod internal;
@@ -76,7 +69,6 @@ pub use scripts::htlc::*;
 pub use transactions::fees::*;
 pub use transactions::commitment::*;
 pub use transactions::htlc::*;
-pub use workflows::*;
 
 /// Main CLI structure
 #[derive(Parser)]
