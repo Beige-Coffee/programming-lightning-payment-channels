@@ -15,7 +15,6 @@ block_count=$(bitcoin-cli -datadir=$BITCOIN_DATA_DIR -regtest -rpcuser=bitcoind 
 
 # If everything is already set up, exit silently
 if [[ "$already_running" =~ "blocks" ]] && [[ -n "$wallet_loaded" ]] && (( block_count >= 150 )); then
-  echo "bitcoind already running."
   exit 0
 fi
 
